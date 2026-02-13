@@ -1,12 +1,12 @@
 # VTSTech-GPTBench R6
 
 https://www.vts-tech.org https://github.com/VTSTech/VTSTech-GPTBench
-
+<pre>
 usage: VTSTech-GPTBench.py [-h] [--models MODELS] [--delay DELAY] [--verbose] [--warmup]
                            [--no-pull] [--output OUTPUT] [--json-output JSON_OUTPUT]
                            [--mode {instruct,tool,agent,all}]
 
-VTSTech GPT Benchmark – Evaluate tiny LLMs on Ollama
+VTSTech GPT Benchmark â€“ Evaluate tiny LLMs on Ollama
 
 options:
   -h, --help            show this help message and exit
@@ -24,4 +24,4 @@ options:
   --mode {instruct,tool,agent,all}, -M {instruct,tool,agent,all}
                         Benchmark mode: instruct, tool, agent or all
 
-Example: python benchmark.py --models llama3.2:1b,qwen2.5:0.5b --mode instruct --verbose
+Example: python benchmark.py --models llama3.2:1b,qwen2.5:0.5b --mode instruct --verbose<pre>
