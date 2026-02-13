@@ -67,7 +67,7 @@ BENCHMARK_CONFIG = {
 # ============ HELPER FUNCTIONS ============
 def banner():
     print(f"VTSTech-GPTBench R6")
-    print(f"https://www.vts-tech.org https://gist.github.com/VTSTech/306eaf5dd3299295d89a31a5f7533274\n")
+    print(f"https://www.vts-tech.org https://github.com/VTSTech/VTSTech-GPTBench\n")
 
 def parse_arguments():
     parser = argparse.ArgumentParser(
@@ -83,7 +83,7 @@ def parse_arguments():
     parser.add_argument("--output", "-o", type=str, help="Save results to CSV file")
     parser.add_argument("--json-output", "-j", type=str, help="Save full results as JSON")
     parser.add_argument("--mode", "-M", choices=["instruct", "tool", "agent", "all"], default="instruct",
-                       help="Benchmark mode: instruct, tool, or both")
+                       help="Benchmark mode: instruct, tool, agent or all")
     return parser.parse_args()
 
 def check_server():
