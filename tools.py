@@ -852,4 +852,8 @@ def is_tool_call(response):
     except Exception:
         return False
 
-ToolRegistry.create_folder = ToolRegistry.create_directory        
+ToolRegistry.create_folder = ToolRegistry.create_directory
+ToolRegistry.mkdir = ToolRegistry.create_directory
+ToolRegistry.get_temperature = ToolRegistry.get_weather
+ToolRegistry.email = ToolRegistry.send_email
+ToolRegistry.calc = ToolRegistry.calculator

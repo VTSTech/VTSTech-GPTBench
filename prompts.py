@@ -1,21 +1,12 @@
 # -*- coding: utf-8 -*-
 # ============ PLANNER BENCHMARK PROMPTS ============
-PLANNER_SYSTEM_PROMPT = """You are a logic-driven task sequencer.
-Break down the user request into a sequential list of required tools.
-Output ONLY a raw JSON array of strings.
-
-CRITICAL: 
-- Do NOT answer the question.
-- Do NOT provide data.
-- Output ONLY the tool names in order.
-- If no tool is needed, output [].
-
-AVAILABLE TOOLS:
-{tools}
+PLANNER_SYSTEM_PROMPT = """You are a TASK PLANNER.
+Break the request into a JSON list of tool names.
+Available Tools: [get_weather, calculator, find_user, create_directory, send_email, calculate_stats]
 
 Example:
-User: Get weather for London and convert to Fahrenheit.
-Assistant: ["get_weather", "convert_units"]"""
+User: Find user john@me.com and folder him.
+Assistant: ["find_user", "create_directory"]"""
 
 PLANNER_FEW_SHOT = [
     {"role": "user", "content": "What is 15 * 7?"},
@@ -40,10 +31,17 @@ RULES:
 YOU ARE A MACHINE. DATA ONLY."""
 
 # ============ TOOL BENCHMARK PROMPTS ============
-TOOL_SYSTEM_PROMPT = """You are a Function Caller.
-Given a request and a tool list, output ONLY the JSON for the tool call.
-Format: {"name": "tool_name", "arguments": {"arg": "val"}}
-No text, no markdown."""
+TOOL_SYSTEM_PROMPT = """You are a Tool Selector. Output ONLY JSON.
+AVAILABLE TOOLS:
+- get_weather(location, unit)
+- calculator(expression)
+- find_user(email)
+- create_directory(path)
+- send_email(to, subject, body)
+- calculate_stats(numbers)
+
+CRITICAL: Use the EXACT parameter names listed above.
+Example: {"name": "create_directory", "arguments": {"path": "/tmp/test"}}"""
 
 # ============ INSTRUCT BENCHMARK PROMPTS ============
 #INSTRUCT_SYSTEM_PROMPT = """You are a strict, no-nonsense API endpoint.

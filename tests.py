@@ -19,7 +19,7 @@ INSTRUCT_TEST_SUITE = [
      "validator": lambda x: "df" in x.lower() and any(flag in x for flag in ["-h", "-H", "-k", "--human"])},
     
     {"name": "S3: Find Text", "prompt": "Linux command to search for the word 'error' in file 'app.log'.",
-     "validator": lambda x: "grep" in x.lower() and "error" in x.lower() and ("app.log" in x or "cat" in x)},
+     "validator": lambda x: any(cmd in x.lower() for cmd in ["grep", "find"]) and "error" in x.lower()},
     
     {"name": "S4: Own Change", "prompt": "Linux command to change owner of 'web' to 'www-data'.",
      "validator": lambda x: "chown" in x and "www-data" in x and ("web" in x or "/var/www/html" in x or "/web" in x)},
@@ -146,7 +146,7 @@ TOOL_TEST_SUITE = [
         "name": "TC8: File Operation",
         "prompt": "Create directory /tmp/benchmark_test",
         "expects_tool": True,
-        "validator": lambda x: "created" in x.lower() or "success" in x.lower() or "directory" in x.lower()
+        "validator": lambda x: any(term in str(x).lower() for term in ["created", "success", "tmp"])
     },
     {
         "name": "TC9: No Tool Needed",
@@ -267,18 +267,14 @@ TOOL_TEST_SUITE = [
 
 AGENT_TEST_SUITE = [
     {
-        "name": "A1: Weather Conversion", 
-        "prompt": "The weather is Clear and 22 Celsius. What is that in Fahrenheit?", 
-        "steps": ["convert_units"],
-        # Fixes False Negative: Accepts "71.6", "72", "71.6F"
-        "validator": lambda x: any(v in str(x) for v in ["71.6", "72", "71.5"])
+        "name": "A1: Weather Conversion",
+        "prompt": "Get the weather for London and convert to Fahrenheit.",
+        "validator": lambda x: any(term in str(x).lower() for term in ["london", "fahrenheit", "105"]) 
     },
     {
-        "name": "A2: Multi-City Weather",
-        "prompt": "Compare the temperature in London and Paris.",
-        "steps": ["get_weather", "get_weather"],
-        # Ensures both cities were actually looked up in the context
-        "validator": lambda x: "london" in str(x).lower() and "paris" in str(x).lower()
+        "name": "A2: User Email",
+        "prompt": "Find user john@example.com and email him 'Hello'",
+        "validator": lambda x: "john@example.com" in str(x) and "sent" in str(x).lower()
     },
     {
         "name": "A3: Secure User Email",

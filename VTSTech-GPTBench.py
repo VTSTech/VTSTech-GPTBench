@@ -50,7 +50,7 @@ BENCHMARK_CONFIG = {
         #"llama3.2:1b", 
         #"granite3-moe:1b",
         #"qwen2.5:0.5b",
-        #"qwen2.5-coder:0.5b",
+        "qwen2.5-coder:0.5b-instruct-q4_k_m",
         "granite4:350m"
     ],
     "options": {
@@ -63,7 +63,7 @@ BENCHMARK_CONFIG = {
         "seed": 420,
     }
 }
-PLANNER_MODEL = "qwen2.5-coder:0.5b"
+PLANNER_MODEL = "qwen2.5-coder:0.5b-instruct-q4_k_m"
 	
 # ============ HELPER FUNCTIONS ============
 def banner():
@@ -255,14 +255,10 @@ def evaluate_model_agent(model, planner, args):
     Executes a multi-step workflow. 
     1. Planner (Instruct) breaks down task.
     2. Executor (Tool) performs steps.
-    """
-    from tests import AGENT_TEST_SUITE 
-    
+    """    
     passed_count = 0
     total_time = 0
     test_results = []
-    tools_list = get_available_tools_list()
-    tools_str = "\n".join([f"- {t}" for t in tools_list])
     
     # We use a higher-tier 'planner' for the logic and the benchmarked 'model' for execution
     print(f"\n🚀 EVALUATING AGENT: [Planner: {planner}] [Tools: {model}]")
@@ -276,59 +272,64 @@ def evaluate_model_agent(model, planner, args):
             # --- STEP 1: PLANNING ---
             # Using the 'planner' model to generate a sequence of sub-tasks
             plan_msg = [
-            {"role": "system", "content": PLANNER_SYSTEM_PROMPT.format(tools=tools_str)}
-        ] + PLANNER_FEW_SHOT + [
-            {"role": "user", "content": test['prompt']}
-        ]
-            raw_plan = ollama_chat_http(planner, plan_msg, format="json", options={"temperature": 0})
-        try:
-            plan = json.loads(sanitize_output(raw_plan))
-            if not isinstance(plan, list): plan = []
-        except:
-            plan = []
-
-        # STEP 2: Execution
-        context = f"Original Task: {test['prompt']}\nPlan: {plan}\n"
-        for step in plan:
-            # Here we prompt the bench-marked 'model' to execute the specific tool
-            exec_msg = [
-                {"role": "system", "content": TOOL_SYSTEM_PROMPT},
-                {"role": "user", "content": f"Context: {context}\n\nTask: Call the tool '{step}' for the original request."}
+                {"role": "system", "content": PLANNER_SYSTEM_PROMPT},
+                {"role": "user", "content": test['prompt']}
             ]
-                print(f"[debug] exec_msg: {exec_msg}")
+            
+            raw_plan = ollama_chat_http(planner, plan_msg, format="json")
+            steps = json.loads(sanitize_output(raw_plan))
+            
+            # --- STEP 2: EXECUTION ---
+            # The benchmarked 'model' now performs each step using tools
+            context = ""
+            
+            # Handle if planner returns a dict instead of a list
+            step_items = steps.items() if isinstance(steps, dict) else enumerate(steps)
+
+            for key, val in step_items:
+                # If list: key is index, val is step string. If dict: key is step name, val is details.
+                step_desc = val if isinstance(steps, list) else key
+                plan_details = val # Data associated with the step
+                
+                exec_msg = [
+                    {"role": "system", "content": TOOL_SYSTEM_PROMPT},
+                    {"role": "user", "content": f"PLAN DATA: {plan_details}\nACTION: Execute the tool for '{step_desc}' using the PLAN DATA."}
+                ]
+                
                 # Model decides which tool to call
                 tool_call_raw = ollama_chat_http(model, exec_msg)
                 cleaned_call = sanitize_output(tool_call_raw)
-                print(f"[debug] tool_call_raw: {tool_call_raw}")
-                # Execute the tool and update context
+                
                 if is_tool_call(cleaned_call):
                     try:
-                        # Parse the JSON if it's still a string
+                        # Parse the JSON tool call
                         call_data = json.loads(cleaned_call) if isinstance(cleaned_call, str) else cleaned_call
                         
-                        # Standardize the call: handle "name"/"arguments" or "tool"/"parameters" formats
-                        t_name = call_data.get("name") or call_data.get("tool") or list(call_data.keys())[0]
-                        t_args = call_data.get("arguments") or call_data.get("parameters") or call_data.get(t_name)
+                        # Standardize formats: "name"/"arguments", "tool"/"parameters", or "function" nested
+                        t_name = call_data.get("name") or call_data.get("tool") or \
+                                 call_data.get("function", {}).get("name") or list(call_data.keys())[0]
+                        t_args = call_data.get("arguments") or call_data.get("parameters") or \
+                                 call_data.get("function", {}).get("arguments") or call_data.get(t_name)
 
-                        # Ensure t_args is a dictionary (converts list to dict if needed)
+                        # Ensure t_args is a dictionary
                         if isinstance(t_args, list):
                             # Map list items to the known tool's first argument
-                            # (e.g., create_directory's first arg is 'path')
                             if t_name == "create_directory": t_args = {"path": t_args[0]}
-                            # Add other mappings as needed for your test suite
+                        elif isinstance(t_args, str):
+                            try: t_args = json.loads(t_args)
+                            except: pass
 
-                        # Pass the separated name and dict to execute_tool
+                        # Execute the tool and update context
                         tool_output = execute_tool(t_name, t_args)
-                        context += f"\nStep '{step}': Result was {json.dumps(tool_output)}"
+                        context += f"\nStep '{step_desc}': Result was {json.dumps(tool_output)}"
                         
                     except Exception as e:
-                        context += f"\nStep '{step}': Execution Error: {str(e)}"
+                        context += f"\nStep '{step_desc}': Execution Error: {str(e)}"
                 else:
-                    # If model fails to call a tool, we record the raw text
-                    context += f"\nStep '{step}': {cleaned_call}"
+                    # Record raw response if model fails to call a tool
+                    context += f"\nStep '{step_desc}': {cleaned_call}"
 
             # --- STEP 3: VALIDATION ---
-            # Passes the accumulated context to the validator function in tests.py
             is_pass = test["validator"](context)
             
             duration = time.perf_counter() - start_time
