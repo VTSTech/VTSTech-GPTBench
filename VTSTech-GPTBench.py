@@ -269,8 +269,13 @@ def robust_execute(t_name, t_args):
             except:
                 t_args["length"] = 12
 
-    # Add more mappings as needed (convert_units, date_calculator, etc.)
-
+    elif t_name == "encode_url":
+		    if "url" in t_args and "text" not in t_args:
+		        t_args["text"] = t_args["url"]
+		        del t_args["url"]
+    elif t_name == "random_number":
+		    t_name = "generate_random_number"
+		    
     return execute_tool(t_name, t_args)
 
 def get_available_tools_list():
@@ -601,17 +606,18 @@ def evaluate_model_tool(model, args):
                 tool_result = robust_execute(tool_name, tool_args)
                 
                 # Add tool call and result to conversation
-                messages.append({"role": "assistant", "content": raw_content.strip()})
-                messages.append({
-                    "role": "tool",
-                    "content": json.dumps(tool_result) if isinstance(tool_result, dict) else str(tool_result),
-                    "name": tool_name
-                })
-                # Force natural language response
-                messages.append({
-								    "role": "user",
-								    "content": "Now answer the original request in plain English using the tool result."
-                })                
+                messages = [
+                    {"role": "system", "content": TOOL_SYSTEM_PROMPT},
+                    {"role": "user", "content": test['prompt']},
+                    {"role": "assistant", "content": raw_content.strip()},
+                    {
+                        "role": "tool",
+                        "content": json.dumps(tool_result) if isinstance(tool_result, dict) else str(tool_result),
+                        "name": tool_name
+                    },
+                    # Force natural language response
+                    {"role": "user", "content": "Now answer the original request in plain English using the tool result."}
+                ]               
                 # Turn 2: Model responds with natural language
                 final_response = ollama_chat_http(
                     model=model,
@@ -628,8 +634,8 @@ def evaluate_model_tool(model, args):
                 
                 if args.verbose:
                     print(f"\n      ├─ Tool Call: {tool_name}({tool_args})")
-                    print(f"      ├─ Tool Result: {json.dumps(tool_result)[:100]}")
-                    print(f"      └─ Final: {content[:100]}")
+                    print(f"      ├─ Tool Result: {json.dumps(tool_result)[:250]}")
+                    print(f"      └─ Final: {content[:250]}")
             
             else:
                 # No tool expected - direct answer
@@ -783,7 +789,5 @@ if __name__ == "__main__":
     if args.mode == "run-tools":
         run_all_tools_logic()
         sys.exit(0)
-    else:
-        print("⏭️  Skipping model pulls")
     
     run_benchmark(args)
