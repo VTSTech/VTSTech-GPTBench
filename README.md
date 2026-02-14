@@ -24,7 +24,7 @@ options:
   --mode {instruct,tool,agent,all}, -M {instruct,tool,agent,all}
                         Benchmark mode: instruct, tool, agent or all
 
-Example: python benchmark.py --models llama3.2:1b,qwen2.5:0.5b --mode instruct --verbose<pre>
+Example: python benchmark.py --models llama3.2:1b,qwen2.5:0.5b --mode instruct --verbose</pre>
 
 <pre>
 VTSTech-GPTBench R6
