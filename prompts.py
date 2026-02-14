@@ -119,37 +119,40 @@ Use the EXACT argument names listed below.
 Do NOT add any other text.
 
 [AVAILABLE TOOLS & SIGNATURES]
-- get_weather(location: str)
+- get_weather(location: str)               # current weather
+- get_forecast(location: str, days: int)   # multi‑day forecast
 - get_air_quality(city: str)
 - calculator(expression: str)
 - calculate_stats(numbers: list)
-- convert_units(value: float, from_unit: str, to_unit: str)
+- convert_units(value, from_unit, to_unit)
 - find_user(email: str)
 - get_user(user_id: int)
-- create_user(name: str, email: str, role: str)
+- create_user(name, email, role)
 - list_users(active_only: bool)
-- send_email(to: str, subject: str, body: str)
-- send_sms(to: str, message: str)
+- send_email(to, subject, body)
+- send_sms(phone, message)
 - list_files(path: str)
 - read_file(path: str)
-- write_file(path: str, content: str)
-- delete_file(path: str)
-- create_directory(path: str)
-- ping_host(host: str)
-- fetch_url(url: str)
-- encode_url(url: str)
-- decode_url(url: str)
-- hash_text(text: str, algorithm: str)
-- generate_password(length: int)
+- write_file(path, content)
+- delete_file(path)
+- create_directory(path)
+- ping_host(host)
+- fetch_url(url)
+- encode_url(text)
+- decode_url(encoded)
+- hash_text(text, algorithm)
+- generate_password(length)
 - generate_confirmation_code()
 - current_time()
-- date_calculator(base_date: str, days: int, operation: str)
-- timezone_converter(time_str: str, from_tz: str, to_tz: str)
+- date_calculator(start_date, days_to_add)
+- timezone_converter(time_str, from_tz, to_tz)
 
 [STEP 2 – Natural Language Response]
-After you receive the tool result, you MUST respond to the user in plain English.
-NEVER output JSON again.
-Simply explain the result in a helpful, conversational way.
+After you receive the tool result, you MUST respond in plain English.
+• Include the specific data returned by the tool (e.g., names, numbers, conditions).
+• Do NOT add unrelated information (e.g., never mention weather unless the query was about weather).
+• Do NOT output JSON again.
+• Do NOT apologise or explain your role.
 
 EXAMPLES:
 
@@ -162,6 +165,11 @@ User: Calculate 15 * 7
 Assistant: {"name": "calculator", "arguments": {"expression": "15 * 7"}}
 [Tool returns: {"result": 105}]
 Assistant: 15 * 7 = 105.
+
+User: Find user with email john@example.com
+Assistant: {"name": "find_user", "arguments": {"email": "john@example.com"}}
+[Tool returns: {"status": "found", "user": {"name": "John Doe", ...}}]
+Assistant: I found John Doe. He is a developer in Engineering.
 
 User: What's the capital of France?
 Assistant: Paris
@@ -176,4 +184,12 @@ TOOL_FEW_SHOT = [
     {"role": "assistant", "content": "{\"name\": \"find_user\", \"arguments\": {\"email\": \"john@example.com\"}}"},
     {"role": "user", "content": "What's the capital of France?"},
     {"role": "assistant", "content": "Paris"},
+		{"role": "user", "content": "What's the weather forecast for Paris for 3 days?"},
+		{"role": "assistant", "content": "{\"name\": \"get_forecast\", \"arguments\": {\"location\": \"Paris\", \"days\": 3}}"},
+		{"role": "user", "content": "Give me a random number between 1 and 50"},
+		{"role": "assistant", "content": "{\"name\": \"generate_random_number\", \"arguments\": {\"min_val\": 1, \"max_val\": 50}}"},
+		{"role": "user", "content": "What date is 30 days after 2026-02-13?"},
+		{"role": "assistant", "content": "{\"name\": \"date_calculator\", \"arguments\": {\"start_date\": \"2026-02-13\", \"days_to_add\": 30}}"},
+		{"role": "user", "content": "List all active users"},
+		{"role": "assistant", "content": "{\"name\": \"list_users\", \"arguments\": {\"active_only\": true}}"},    	
 ]

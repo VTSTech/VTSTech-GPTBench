@@ -282,7 +282,32 @@ def robust_execute(t_name, t_args):
 		        del t_args["url"]
     elif t_name == "random_number":
 		    t_name = "generate_random_number"
-		    
+		elif t_name == "generate_random_number" or t_name == "random_number":
+		    # Normalize to generate_random_number
+		    t_name = "generate_random_number"
+		    if "min" in t_args and "min_val" not in t_args:
+		        t_args["min_val"] = t_args.pop("min")
+		    if "max" in t_args and "max_val" not in t_args:
+		        t_args["max_val"] = t_args.pop("max")
+
+		elif t_name == "date_calculator":
+		    # Map common alternative argument names
+		    if "base_date" in t_args and "start_date" not in t_args:
+		        t_args["start_date"] = t_args.pop("base_date")
+		    if "days" in t_args and "days_to_add" not in t_args:
+		        t_args["days_to_add"] = t_args.pop("days")
+		    # If operation is 'add' or 'subtract', we may need to convert; but tool expects days_to_add positive for add, negative for subtract?
+		    # Our date_calculator uses days_to_add and days_to_subtract separately.
+		    # Simplify: treat days_to_add as positive, if operation is 'subtract' then make days_to_add negative.
+		    if "operation" in t_args:
+		        if t_args["operation"].lower() == "subtract":
+		            t_args["days_to_add"] = -t_args.get("days_to_add", 0)
+		        del t_args["operation"]
+
+		elif t_name == "get_forecast":
+		    # Ensure days is integer
+		    if "days" in t_args:
+		        t_args["days"] = int(t_args["days"])		    
     return execute_tool(t_name, t_args)
 
 def get_available_tools_list():

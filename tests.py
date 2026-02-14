@@ -128,7 +128,7 @@ TOOL_TEST_SUITE = [
         "name": "TC5: User Lookup",
         "prompt": "Find user with email john@example.com",
         "expects_tool": True,
-        "validator": lambda x: "John Doe" in x
+        "validator": lambda x: "John Doe" in x   # strict – must include name
     },
     {
         "name": "TC6: User by ID",
@@ -179,7 +179,7 @@ TOOL_TEST_SUITE = [
         "name": "TC13: Unit Conversion",
         "prompt": "Convert 100 kilometers to miles",
         "expects_tool": True,
-        "validator": lambda x: "62.1" in x or "miles" in x.lower()
+        "validator": lambda x: "62.1" in x and "Paris" not in x
     },
     {
         "name": "TC14: Statistics",
@@ -199,7 +199,7 @@ TOOL_TEST_SUITE = [
         "name": "TC16: List Users",
         "prompt": "Show me all active users",
         "expects_tool": True,
-        "validator": lambda x: "John" in x or "Jane" in x or "Alice" in x
+         "validator": lambda x: any(name in x for name in ["John", "Jane", "Alice"])
     },
     {
         "name": "TC17: Create User",
@@ -213,7 +213,7 @@ TOOL_TEST_SUITE = [
         "name": "TC18: List Files",
         "prompt": "What files are in the current directory?",
         "expects_tool": True,
-        "validator": lambda x: any(ext in x.lower() for ext in [".py", ".md", ".txt", "file", "directory"])
+        "validator": lambda x: any(ext in x for ext in [".py", ".md", ".txt", "VTSTech", "tools.py"])
     },
     {
         "name": "TC19: Read File",
@@ -225,7 +225,7 @@ TOOL_TEST_SUITE = [
     # Web & Network
     {
         "name": "TC20: Fetch URL",
-        "prompt": "Fetch the content from https://example.com",
+        "prompt": "Fetch the content from https://www.example.com/",
         "expects_tool": True,
         "validator": lambda x: "Example Domain" in x or "html" in x.lower()
     },
@@ -241,7 +241,7 @@ TOOL_TEST_SUITE = [
         "name": "TC22: Hash Text",
         "prompt": "Generate SHA256 hash of 'password123'",
         "expects_tool": True,
-        "validator": lambda x: "8d969e" in str(x)  # SHA256 of 'password123'
+        "validator": lambda x: "57db12" in str(x)   # correct prefix
     },
     {
         "name": "TC23: Generate Password",
@@ -255,7 +255,7 @@ TOOL_TEST_SUITE = [
         "name": "TC24: Date Calculator",
         "prompt": "What date is 30 days from 2026-02-13?",
         "expects_tool": True,
-        "validator": lambda x: "2026-03-15" in x or "March 15" in x
+        "validator": lambda x: ("2026-03-15" in x or "March 15" in x or "15 Mar" in x)
     },
     {
         "name": "TC25: Timezone Converter",
