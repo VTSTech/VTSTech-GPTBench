@@ -15,17 +15,17 @@ from prompts import INSTRUCT_SYSTEM_PROMPT, INSTRUCT_FEW_SHOT, TOOL_SYSTEM_PROMP
 from tests import INSTRUCT_TEST_SUITE, TOOL_TEST_SUITE, AGENT_TEST_SUITE
 from tools import ToolRegistry, execute_tool, validate_tool_call, is_tool_call
 
-def ensure_ollama():
-    try:
-        import ollama
-    except ImportError:
-        print("Ollama library not found. Installing now...")
-        subprocess.check_call([sys.executable, "-m", "pip", "install", "ollama"])
-        print("Successfully installed ollama.")
-        importlib.reload(site)
-
-ensure_ollama()
-import ollama
+#def ensure_ollama():
+#    try:
+#        import ollama
+#    except ImportError:
+#        print("Ollama library not found. Installing now...")
+#        subprocess.check_call([sys.executable, "-m", "pip", "install", "ollama"])
+#        print("Successfully installed ollama.")
+#        importlib.reload(site)
+#
+#ensure_ollama()
+#import ollama
 
 # ============ CONFIGURATION ============
 MODEL_NUM_PREDICT = {
@@ -48,9 +48,9 @@ BENCHMARK_CONFIG = {
     "sleep_delay": 0.2,
     "models": [
         #"llama3.2:1b", 
-        "granite3-moe:1b",
+        #"granite3-moe:1b",
         #"qwen2.5:0.5b",
-        "qwen2.5-coder:0.5b",
+        #"qwen2.5-coder:0.5b",
         "granite4:350m"
     ],
     "options": {
@@ -63,7 +63,8 @@ BENCHMARK_CONFIG = {
         "seed": 420,
     }
 }
-
+PLANNER_MODEL = "qwen2.5-coder:0.5b"
+	
 # ============ HELPER FUNCTIONS ============
 def banner():
     print(f"VTSTech-GPTBench R6")
@@ -244,49 +245,103 @@ def evaluate_model_instruct(model, args):
     
     return model, score, avg_lat, results
 
-def evaluate_model_agent(model, args):
+def get_available_tools_list():
+    # Gets all static methods from ToolRegistry that don't start with _
+    return [func for func in dir(ToolRegistry) if not func.startswith("_") 
+            and callable(getattr(ToolRegistry, func))]
+            
+def evaluate_model_agent(model, planner, args):
     """
     Executes a multi-step workflow. 
     1. Planner (Instruct) breaks down task.
     2. Executor (Tool) performs steps.
     """
-    from tests import AGENT_TEST_SUITE  # Ensure this is in your tests.py
+    from tests import AGENT_TEST_SUITE 
     
     passed_count = 0
     total_time = 0
     test_results = []
+    tools_list = get_available_tools_list()
     
-    print(f"\n🚀 EVALUATING AGENT: {model}")
-    print("-" * 40)
+    # We use a higher-tier 'planner' for the logic and the benchmarked 'model' for execution
+    print(f"\n🚀 EVALUATING AGENT: [Planner: {planner}] [Tools: {model}]")
+    print("-" * 55)
 
     for test in AGENT_TEST_SUITE:
-        print(f"Agent Task: {test['name']:<20}", end=" ", flush=True)
+        print(f"Agent Task: {test['name']:<25}", end=" ", flush=True)
         start_time = time.perf_counter()
         
         try:
-            # Step 1: Planning (Using the model as an Instructor)
-            # You can use a specific 'planner' model here if you wanted to mix/match
-            plan_msg = [{"role": "system", "content": "Break this into a JSON list of steps."},
-                        {"role": "user", "content": test['prompt']}]
-            raw_plan = ollama_chat_http(model, plan_msg, format="json")
+            # --- STEP 1: PLANNING ---
+            # Using the 'planner' model to generate a sequence of sub-tasks
+            plan_msg = [
+    {"role": "system", "content": """You are a TASK PLANNER. 
+Break the user's request into a simple JSON list of text steps.
+DO NOT solve the task. DO NOT provide data. ONLY provide the steps.
+
+BAD: {"step": "weather is 70F"}
+GOOD: ["Get weather for London", "Convert Celsius to Fahrenheit"]"""},
+    {"role": "user", "content": test['prompt']}
+            ]
+            raw_plan = ollama_chat_http(planner, plan_msg, format="json")
             steps = json.loads(sanitize_output(raw_plan))
-            
-            # Step 2: Execution Loop (Using the model as a Tool Caller)
+            print(f"[debug] raw_plan: {raw_plan}")
+            # --- STEP 2: EXECUTION ---
+            # The benchmarked 'model' now performs each step using tools
             context = ""
             for step in steps:
-                exec_msg = [{"role": "system", "content": TOOL_SYSTEM_PROMPT},
-                            {"role": "user", "content": f"Context: {context}\nNext Task: {step}"}]
+                plan_details = steps[step] # Get the specific values the planner decided on
+                exec_msg = [
+    {"role": "system", "content": TOOL_SYSTEM_PROMPT},
+    {"role": "user", "content": f"PLAN DATA: {plan_details}\nACTION: Execute the tool for {step} using the PLAN DATA."}
+                ]
+                print(f"[debug] exec_msg: {exec_msg}")
+                # Model decides which tool to call
                 tool_call_raw = ollama_chat_http(model, exec_msg)
-                
-                # Logic to parse tool_call_raw and call execute_tool() goes here...
-                # update context with tool results
-            
-            # Step 3: Validation
+                cleaned_call = sanitize_output(tool_call_raw)
+                print(f"[debug] tool_call_raw: {tool_call_raw}")
+                # Execute the tool and update context
+                if is_tool_call(cleaned_call):
+                    try:
+                        # Parse the JSON if it's still a string
+                        call_data = json.loads(cleaned_call) if isinstance(cleaned_call, str) else cleaned_call
+                        
+                        # Standardize the call: handle "name"/"arguments" or "tool"/"parameters" formats
+                        t_name = call_data.get("name") or call_data.get("tool") or list(call_data.keys())[0]
+                        t_args = call_data.get("arguments") or call_data.get("parameters") or call_data.get(t_name)
+
+                        # Ensure t_args is a dictionary (converts list to dict if needed)
+                        if isinstance(t_args, list):
+                            # Map list items to the known tool's first argument
+                            # (e.g., create_directory's first arg is 'path')
+                            if t_name == "create_directory": t_args = {"path": t_args[0]}
+                            # Add other mappings as needed for your test suite
+
+                        # Pass the separated name and dict to execute_tool
+                        tool_output = execute_tool(t_name, t_args)
+                        context += f"\nStep '{step}': Result was {json.dumps(tool_output)}"
+                        
+                    except Exception as e:
+                        context += f"\nStep '{step}': Execution Error: {str(e)}"
+                else:
+                    # If model fails to call a tool, we record the raw text
+                    context += f"\nStep '{step}': {cleaned_call}"
+
+            # --- STEP 3: VALIDATION ---
+            # Passes the accumulated context to the validator function in tests.py
             is_pass = test["validator"](context)
             
             duration = time.perf_counter() - start_time
             total_time += duration
             if is_pass: passed_count += 1
+            
+            test_results.append({
+                "model": model,
+                "test": test['name'],
+                "pass": is_pass,
+                "latency": duration,
+                "context": context
+            })
             
             print(f"{'✅ PASS' if is_pass else '❌ FAIL'} ({duration:.2f}s)")
             
@@ -457,6 +512,7 @@ def evaluate_model_tool(model, args):
 def run_benchmark(args):
     instruct_results = []
     tool_results = []
+    agent_results = []
     
     models = BENCHMARK_CONFIG["models"]
     if args.models:
@@ -491,9 +547,8 @@ def run_benchmark(args):
         print("=" * 55)
         
         for model in models:
-            result = evaluate_model_agent(model, args)
+            result = evaluate_model_agent(model, PLANNER_MODEL, args)
             agent_results.append(result)
-            
             if args.json_output:
                 with open(f"{args.json_output}_agent.json", 'w') as f:
                     json.dump([r[3] for r in agent_results], f, indent=2)
