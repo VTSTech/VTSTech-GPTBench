@@ -83,8 +83,8 @@ def parse_arguments():
     parser.add_argument("--no-pull", action="store_true", help="Skip pulling models")
     parser.add_argument("--output", "-o", type=str, help="Save results to CSV file")
     parser.add_argument("--json-output", "-j", type=str, help="Save full results as JSON")
-    parser.add_argument("--mode", "-M", choices=["instruct", "tool", "agent", "all"], default="instruct",
-                       help="Benchmark mode: instruct, tool, agent or all")
+    parser.add_argument("--mode", "-M", choices=["instruct", "tool", "agent", "run-tools", "all"], default="instruct",
+                       help="Benchmark mode: instruct, tool, agent, run-tools or all")
     return parser.parse_args()
 
 def check_server():
@@ -249,7 +249,64 @@ def get_available_tools_list():
     # Gets all static methods from ToolRegistry that don't start with _
     return [func for func in dir(ToolRegistry) if not func.startswith("_") 
             and callable(getattr(ToolRegistry, func))]
+
+def run_all_tools_logic():
+    """Iterates through ToolRegistry and executes every tool with sample data."""
+    print(f"\n🛠️  EXECUTING ALL REGISTERED TOOLS")
+    print("-" * 45)
+    
+    # Unified sample data mapping
+    sample_data = {
+        "get_weather": {"location": "London"},
+        "get_temperature": {"location": "London"}, # Alias
+        "get_forecast": {"location": "New York", "days": 3},
+        "get_air_quality": {"city": "Tokyo"},
+        "calculator": {"expression": "sqrt(144) + 10"},
+        "calc": {"expression": "10 + 10"}, # Alias
+        "convert_units": {"value": 100, "from_unit": "miles", "to_unit": "kilometers"},
+        "generate_random_number": {"min_val": 1, "max_val": 50},
+        "calculate_stats": {"numbers": [10, 20, 30, 40, 50]},
+        "create_directory": {"path": "test_bench_dir"},
+        "create_folder": {"path": "test_folder"}, # Alias
+        "mkdir": {"path": "test_mkdir"}, # Alias
+        "list_files": {"path": "."},
+        "read_file": {"path": "tools.py"},
+        "write_file": {"path": "test.txt", "content": "Hello Bench"},
+        "delete_file": {"path": "test.txt"},
+        "get_user": {"user_id": 1},
+        "find_user": {"query": "Alice"}, # Check if your tool uses 'query' or 'name'
+        "create_user": {"name": "VTSTech", "email": "admin@vts-tech.org"},
+        "send_email": {"to": "test@example.com", "subject": "Bench", "body": "Hello"},
+        "email": {"to": "test@example.com", "subject": "Bench", "body": "Hello"}, # Alias
+        "send_sms": {"phone_number": "555-0199", "message": "Test SMS"},
+        "current_time": {},
+        "date_calculator": {"date_str": "2026-02-13", "days": 30}, # Fixed key
+        "timezone_converter": {"time_str": "14:30", "from_tz": "EST", "to_tz": "PST"},
+        "hash_text": {"text": "password123", "algorithm": "sha256"},
+        "generate_password": {"length": 12},
+        "decode_url": {"encoded": "https%3A%2F%2Fvts-tech.org"},
+        "encode_url": {"text": "https://vts-tech.org"},
+        "fetch_url": {"url": "https://wttr.in/London?format=3"},
+        "ping_host": {"host": "8.8.8.8"}
+    }
+
+    methods = [m for m in dir(ToolRegistry) if not m.startswith('_') and callable(getattr(ToolRegistry, m))]
+
+    for method_name in methods:
+        # Skip class methods or internal stuff
+        if method_name in ['execute_tool', 'validate_tool_call']: continue
+        
+        print(f"Running {method_name:<25}", end=" -> ", flush=True)
+        try:
+            func = getattr(ToolRegistry, method_name)
+            args = sample_data.get(method_name, {})
             
+            # Use inspect to only pass valid arguments if you want to be extra safe
+            result = func(**args)
+            print(f"✅ SUCCESS")
+        except Exception as e:
+            print(f"❌ FAILED: {str(e)}")
+                
 def evaluate_model_agent(model, planner, args):
     """
     Executes a multi-step workflow. 
@@ -622,6 +679,9 @@ if __name__ == "__main__":
         models = args.models.split(",") if args.models else BENCHMARK_CONFIG["models"]
         for m in models:
             pull_if_missing(m.strip())
+    if args.mode == "run-tools":
+        run_all_tools_logic()
+        pass
     else:
         print("⏭️  Skipping model pulls")
     
