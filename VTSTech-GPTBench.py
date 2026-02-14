@@ -11,21 +11,9 @@ import importlib
 import site
 
 # Import modules
-from prompts import INSTRUCT_SYSTEM_PROMPT, INSTRUCT_FEW_SHOT, TOOL_SYSTEM_PROMPT, TOOL_FEW_SHOT, PLANNER_SYSTEM_PROMPT, PLANNER_FEW_SHOT
+from prompts import INSTRUCT_SYSTEM_PROMPT, INSTRUCT_FEW_SHOT, TOOL_SYSTEM_PROMPT, TOOL_FEW_SHOT, PLANNER_SYSTEM_PROMPT, PLANNER_FEW_SHOT, AGENT_SYSTEM_PROMPT
 from tests import INSTRUCT_TEST_SUITE, TOOL_TEST_SUITE, AGENT_TEST_SUITE
 from tools import ToolRegistry, execute_tool, validate_tool_call, is_tool_call
-
-#def ensure_ollama():
-#    try:
-#        import ollama
-#    except ImportError:
-#        print("Ollama library not found. Installing now...")
-#        subprocess.check_call([sys.executable, "-m", "pip", "install", "ollama"])
-#        print("Successfully installed ollama.")
-#        importlib.reload(site)
-#
-#ensure_ollama()
-#import ollama
 
 # ============ CONFIGURATION ============
 MODEL_NUM_PREDICT = {
@@ -39,6 +27,7 @@ MODEL_NUM_PREDICT = {
     "qwen2.5:1.5b": 256,
     "qwen2.5-coder:0.5b": 128,
     "qwen2.5-coder:1.5b": 256,
+    "qwen2.5-coder:0.5b-instruct-q4_k_m": 512,
     "granite4:350m": 128,
     "granite4:800m": 256,
     "default": 256
@@ -310,15 +299,16 @@ def run_all_tools_logic():
 def evaluate_model_agent(model, planner, args):
     """
     Executes a multi-step workflow. 
-    1. Planner (Instruct) breaks down task.
-    2. Executor (Tool) performs steps.
+    1. Planner (Higher tier) breaks down task.
+    2. Model (Benchmarked) generates tool calls.
+    3. ToolRegistry executes calls.
+    4. Model (Benchmarked) synthesizes final answer.
     """    
     passed_count = 0
     total_time = 0
     test_results = []
     
-    # We use a higher-tier 'planner' for the logic and the benchmarked 'model' for execution
-    print(f"\n🚀 EVALUATING AGENT: [Planner: {planner}] [Tools: {model}]")
+    print(f"\n🚀 EVALUATING AGENT: [Planner: {planner}] [Tools/Synthesis: {model}]")
     print("-" * 55)
 
     for test in AGENT_TEST_SUITE:
@@ -327,7 +317,7 @@ def evaluate_model_agent(model, planner, args):
         
         try:
             # --- STEP 1: PLANNING ---
-            # Using the 'planner' model to generate a sequence of sub-tasks
+            # The planner converts natural language into a list of steps/tools
             plan_msg = [
                 {"role": "system", "content": PLANNER_SYSTEM_PROMPT},
                 {"role": "user", "content": test['prompt']}
@@ -337,57 +327,48 @@ def evaluate_model_agent(model, planner, args):
             steps = json.loads(sanitize_output(raw_plan))
             
             # --- STEP 2: EXECUTION ---
-            # The benchmarked 'model' now performs each step using tools
-            context = ""
-            
-            # Handle if planner returns a dict instead of a list
+            context_data = [] # To store actual tool results
             step_items = steps.items() if isinstance(steps, dict) else enumerate(steps)
 
-            for key, val in step_items:
-                # If list: key is index, val is step string. If dict: key is step name, val is details.
-                step_desc = val if isinstance(steps, list) else key
-                plan_details = val # Data associated with the step
+            for _, val in step_items:
+                step_desc = val
                 
                 exec_msg = [
                     {"role": "system", "content": TOOL_SYSTEM_PROMPT},
-                    {"role": "user", "content": f"PLAN DATA: {plan_details}\nACTION: Execute the tool for '{step_desc}' using the PLAN DATA."}
+                    {"role": "user", "content": f"ORIGINAL REQUEST: {test['prompt']}\nCURRENT STEP: {step_desc}"}
                 ]
                 
-                # Model decides which tool to call
                 tool_call_raw = ollama_chat_http(model, exec_msg)
                 cleaned_call = sanitize_output(tool_call_raw)
                 
                 if is_tool_call(cleaned_call):
                     try:
-                        # Parse the JSON tool call
-                        call_data = json.loads(cleaned_call) if isinstance(cleaned_call, str) else cleaned_call
+                        # Parse and execute
+                        call_data = json.loads(cleaned_call)
+                        # Extract name and args using the logic you already established
+                        t_name = call_data.get("name") or call_data.get("function", {}).get("name")
+                        t_args = call_data.get("arguments") or call_data.get("function", {}).get("arguments")
                         
-                        # Standardize formats: "name"/"arguments", "tool"/"parameters", or "function" nested
-                        t_name = call_data.get("name") or call_data.get("tool") or \
-                                 call_data.get("function", {}).get("name") or list(call_data.keys())[0]
-                        t_args = call_data.get("arguments") or call_data.get("parameters") or \
-                                 call_data.get("function", {}).get("arguments") or call_data.get(t_name)
-
-                        # Ensure t_args is a dictionary
-                        if isinstance(t_args, list):
-                            # Map list items to the known tool's first argument
-                            if t_name == "create_directory": t_args = {"path": t_args[0]}
-                        elif isinstance(t_args, str):
-                            try: t_args = json.loads(t_args)
-                            except: pass
-
-                        # Execute the tool and update context
-                        tool_output = execute_tool(t_name, t_args)
-                        context += f"\nStep '{step_desc}': Result was {json.dumps(tool_output)}"
-                        
+                        output = execute_tool(t_name, t_args)
+                        context_data.append({"step": step_desc, "result": output})
                     except Exception as e:
-                        context += f"\nStep '{step_desc}': Execution Error: {str(e)}"
+                        context_data.append({"step": step_desc, "error": str(e)})
                 else:
-                    # Record raw response if model fails to call a tool
-                    context += f"\nStep '{step_desc}': {cleaned_call}"
+                    context_data.append({"step": step_desc, "response": cleaned_call})
 
-            # --- STEP 3: VALIDATION ---
-            is_pass = test["validator"](context)
+            # --- STEP 3: FINAL SYNTHESIS ---
+            # Now the model uses AGENT_SYSTEM_PROMPT to explain the results to the user
+            synthesis_input = f"User Request: {test['prompt']}\nExecution Results: {json.dumps(context_data)}"
+            synthesis_msg = [
+                {"role": "system", "content": AGENT_SYSTEM_PROMPT},
+                {"role": "user", "content": synthesis_input}
+            ]
+            
+            final_answer = ollama_chat_http(model, synthesis_msg)
+            
+            # --- STEP 4: VALIDATION ---
+            # We validate the FINAL ANSWER, not just the raw context
+            is_pass = test["validator"](final_answer)
             
             duration = time.perf_counter() - start_time
             total_time += duration
@@ -398,7 +379,7 @@ def evaluate_model_agent(model, planner, args):
                 "test": test['name'],
                 "pass": is_pass,
                 "latency": duration,
-                "context": context
+                "final_answer": final_answer
             })
             
             print(f"{'✅ PASS' if is_pass else '❌ FAIL'} ({duration:.2f}s)")
