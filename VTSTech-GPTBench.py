@@ -324,7 +324,15 @@ def evaluate_model_agent(model, planner, args):
             ]
             
             raw_plan = ollama_chat_http(planner, plan_msg, format="json")
-            steps = json.loads(sanitize_output(raw_plan))
+            try:
+						    decoded_plan = json.loads(sanitize_output(raw_plan))
+						    if isinstance(decoded_plan, dict):
+						        # Convert {"tool1": "...", "tool2": "..."} -> ["tool1", "tool2"]
+						        steps = list(decoded_plan.keys())
+						    else:
+						        steps = decoded_plan
+            except:
+						    steps = []
             if args.verbose: print(f"\n[debug] raw_plan: {raw_plan}")
             # --- STEP 2: EXECUTION ---
             context_data = [] # To store actual tool results

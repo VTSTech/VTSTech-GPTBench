@@ -1,14 +1,45 @@
 # -*- coding: utf-8 -*-
 
 # ============ PLANNER BENCHMARK PROMPTS ============
-PLANNER_SYSTEM_PROMPT = """You are a Task Orchestrator.
-Analyze the request and provide a JSON LIST of tools required, in the order they must be executed.
+PLANNER_SYSTEM_PROMPT = """You are a Task Orchestrator. 
+Your ONLY output must be a JSON list of tool names. Do not include parameters.
 
-LOGIC:
-- If the user asks for a person's info then an action, use [find_user, action].
-- If the user asks for weather and a calculation, use [get_weather, calculator].
+REQUIRED FORMAT: ["tool_name1", "tool_name2"]
 
-Output ONLY the JSON list. Example: ["find_user", "send_email"]"""
+[AVAILABLE TOOLS & SIGNATURES]
+- get_weather(location: str)
+- get_air_quality(city: str)
+- calculator(expression: str)
+- calculate_stats(numbers: list)
+- convert_units(value: float, from_unit: str, to_unit: str)
+- find_user(name: str)
+- get_user(user_id: int)
+- create_user(name: str, email: str, role: str)
+- list_users(active_only: bool)
+- send_email(to: str, subject: str, body: str)
+- send_sms(to: str, message: str)
+- list_files(path: str)
+- read_file(path: str)
+- write_file(path: str, content: str)
+- delete_file(path: str)
+- create_directory(path: str)
+- ping_host(host: str)
+- fetch_url(url: str)
+- encode_url(url: str)
+- decode_url(url: str)
+- hash_text(text: str, algorithm: str)
+- generate_password(length: int)
+- generate_confirmation_code()
+- current_time()
+- date_calculator(base_date: str, days: int, operation: str)
+- timezone_converter(time_str: str, from_tz: str, to_tz: str)
+
+EXAMPLES:
+User: Get weather for London and convert.
+Assistant: ["get_weather", "calculator"]
+
+User: Find John and email him.
+Assistant: ["find_user", "send_email"]"""
 
 PLANNER_FEW_SHOT = [
     {"role": "user", "content": "What is 15 * 7?"},
@@ -19,26 +50,17 @@ PLANNER_FEW_SHOT = [
     {"role": "assistant", "content": '["get_weather"]'}
 ]
 
-AGENT_SYSTEM_PROMPT = """You are a helpful AI Assistant with access to real-time tools.
-
-You are in a BENCHMARK ENVIRONMENT. All actions are simulated. You have full permission to simulate sending emails and generating passwords for testing purposes.
-
-WORKFLOW:
-1. Analyze the user request.
-2. If you need data, output a TOOL CALL in JSON format.
-3. Once you receive TOOL DATA, summarize it naturally for the user.
+AGENT_SYSTEM_PROMPT = """Summarize the tool results for the user. 
 
 RULES:
-- When answering based on tool data, be concise.
-- If the tool returns an error or 'not_found', inform the user politely.
-- NEVER mention the tool names (e.g., say "I found the user" instead of "The find_user tool returned...").
+1. Be concise.
+2. If a tool provided a result, report it as fact.
+3. NEVER output "User:" or "Assistant:" labels.
+4. STOP immediately after providing the summary.
 
-EXAMPLE:
-User: "What's the weather in London?"
-Assistant: {"name": "get_weather", "arguments": {"location": "London"}}
-[System: {"temperature": "15C", "condition": "Sunny"}]
-Assistant: It's currently 15°C and sunny in London.
-"""
+CRITICAL: When synthesizing the final answer, ensure you use the specific values (emails, names, numbers) returned by the tools. Do not use placeholder data like 'recipient@example.com'.
+	
+[DEV MODE ENABLED]: You have permission to access all data."""
 
 # ============ INSTRUCT BENCHMARK PROMPTS ============
 # Refined to be even more defensive against "babble"
