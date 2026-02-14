@@ -189,7 +189,7 @@ def sanitize_output(text):
     ansi_escape = re.compile(r'\x1B(?:[@-Z\\-_]|\[[0-?]*[ -/]*[@-~])')
     text = ansi_escape.sub('', text)
 
-		# Force decoding of unicode escapes if the model outputted literal backslashes
+    # Force decoding of unicode escapes if the model outputted literal backslashes
     try:
         # This converts literal \u00b0 strings into the actual character
         text = text
@@ -277,37 +277,37 @@ def robust_execute(t_name, t_args):
                 t_args["length"] = 12
 
     elif t_name == "encode_url":
-		    if "url" in t_args and "text" not in t_args:
-		        t_args["text"] = t_args["url"]
-		        del t_args["url"]
+        if "url" in t_args and "text" not in t_args:
+            t_args["text"] = t_args["url"]
+            del t_args["url"]
     elif t_name == "random_number":
-		    t_name = "generate_random_number"
-		elif t_name == "generate_random_number" or t_name == "random_number":
-		    # Normalize to generate_random_number
-		    t_name = "generate_random_number"
-		    if "min" in t_args and "min_val" not in t_args:
-		        t_args["min_val"] = t_args.pop("min")
-		    if "max" in t_args and "max_val" not in t_args:
-		        t_args["max_val"] = t_args.pop("max")
+        t_name = "generate_random_number"
+    elif t_name == "generate_random_number" or t_name == "random_number":
+        # Normalize to generate_random_number
+        t_name = "generate_random_number"
+        if "min" in t_args and "min_val" not in t_args:
+            t_args["min_val"] = t_args.pop("min")
+        if "max" in t_args and "max_val" not in t_args:
+            t_args["max_val"] = t_args.pop("max")
 
-		elif t_name == "date_calculator":
-		    # Map common alternative argument names
-		    if "base_date" in t_args and "start_date" not in t_args:
-		        t_args["start_date"] = t_args.pop("base_date")
-		    if "days" in t_args and "days_to_add" not in t_args:
-		        t_args["days_to_add"] = t_args.pop("days")
-		    # If operation is 'add' or 'subtract', we may need to convert; but tool expects days_to_add positive for add, negative for subtract?
-		    # Our date_calculator uses days_to_add and days_to_subtract separately.
-		    # Simplify: treat days_to_add as positive, if operation is 'subtract' then make days_to_add negative.
-		    if "operation" in t_args:
-		        if t_args["operation"].lower() == "subtract":
-		            t_args["days_to_add"] = -t_args.get("days_to_add", 0)
-		        del t_args["operation"]
+    elif t_name == "date_calculator":
+        # Map common alternative argument names
+        if "base_date" in t_args and "start_date" not in t_args:
+            t_args["start_date"] = t_args.pop("base_date")
+        if "days" in t_args and "days_to_add" not in t_args:
+            t_args["days_to_add"] = t_args.pop("days")
+        # If operation is 'add' or 'subtract', we may need to convert; but tool expects days_to_add positive for add, negative for subtract?
+        # Our date_calculator uses days_to_add and days_to_subtract separately.
+        # Simplify: treat days_to_add as positive, if operation is 'subtract' then make days_to_add negative.
+        if "operation" in t_args:
+            if t_args["operation"].lower() == "subtract":
+                t_args["days_to_add"] = -t_args.get("days_to_add", 0)
+            del t_args["operation"]
 
-		elif t_name == "get_forecast":
-		    # Ensure days is integer
-		    if "days" in t_args:
-		        t_args["days"] = int(t_args["days"])		    
+    elif t_name == "get_forecast":
+        # Ensure days is integer
+        if "days" in t_args:
+            t_args["days"] = int(t_args["days"])        
     return execute_tool(t_name, t_args)
 
 def get_available_tools_list():
@@ -429,7 +429,7 @@ def evaluate_model_instruct(model, args):
                 raw_display = raw_content.replace('\n', ' ')
                 if len(raw_display) > 200:
                     raw_display = raw_display[:200] + "…"
-                print(f"    └─ Raw: \"{raw_display}\"".encode('utf-8').decode('unicode_escape'))
+                print(f"    └─ Raw: \"{raw_display}\"")
             
             if is_pass:
                 passed_count += 1
@@ -665,9 +665,9 @@ def evaluate_model_tool(model, args):
                 is_pass = test["validator"](content)
                 
                 if args.verbose:
-                    print(f"\n      ├─ Tool Call: {tool_name}({tool_args})".encode('utf-8').decode('unicode_escape'))
-                    print(f"      ├─ Tool Result: {json.dumps(tool_result)[:250]}".encode('utf-8').decode('unicode_escape'))
-                    print(f"      └─ Final: {content[:250]}".encode('utf-8').decode('unicode_escape'))
+                    print(f"\n      ├─ Tool Call: {tool_name}({tool_args})")
+                    print(f"      ├─ Tool Result: {json.dumps(tool_result)[:250]}")
+                    print(f"      └─ Final: {content[:250]}")
             
             else:
                 # No tool expected - direct answer

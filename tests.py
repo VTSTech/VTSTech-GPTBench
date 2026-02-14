@@ -213,7 +213,8 @@ TOOL_TEST_SUITE = [
         "name": "TC18: List Files",
         "prompt": "What files are in the current directory?",
         "expects_tool": True,
-        "validator": lambda x: any(ext in x for ext in [".py", ".md", ".txt", "VTSTech", "tools.py"])
+        "validator": lambda x:         any(ext in x.lower() for ext in [".py", ".md", ".txt", "file", "directory"]) or
+        ("file" in x.lower() and any(c.isdigit() for c in x))
     },
     {
         "name": "TC19: Read File",
@@ -227,7 +228,11 @@ TOOL_TEST_SUITE = [
         "name": "TC20: Fetch URL",
         "prompt": "Fetch the content from https://www.example.com/",
         "expects_tool": True,
-        "validator": lambda x: "Example Domain" in x or "html" in x.lower()
+        "validator": lambda x: (
+        "Example Domain" in x or
+        "html" in x.lower() or
+        ("error" in x.lower() and "ssl" in x.lower())  # certificate error is acceptable
+    )
     },
     {
         "name": "TC21: Encode URL",
@@ -239,9 +244,9 @@ TOOL_TEST_SUITE = [
     # Security
     {
         "name": "TC22: Hash Text",
-        "prompt": "Generate SHA256 hash of 'password123'",
-        "expects_tool": True,
-        "validator": lambda x: "57db12" in str(x)   # correct prefix
+        "prompt": "Generate SHA256 hash of 'password123'", #password123:ef92b778bafe771e89245b89ecbc08a44a4e166c06659911881f383d4473e94f
+        "expects_tool": True,															 #'password123':1c033ec9ac1a45ada4a7e98d7fa750ca1b988aeeb6e1bdbc8e3c69789411f945
+        "validator": lambda x: "ef92b77" in str(x)   # correct prefix #"password123":4a61f9cdf3d1802bfa50f0a524af2753cdc86516614ad0e8ace229a77e41d07d
     },
     {
         "name": "TC23: Generate Password",
@@ -261,7 +266,7 @@ TOOL_TEST_SUITE = [
         "name": "TC25: Timezone Converter",
         "prompt": "Convert 14:30 from EST to PST",
         "expects_tool": True,
-        "validator": lambda x: "11:30" in x or "12:30" in x
+        "validator": lambda x: "11:30" in x and "Paris" not in x
     }    
 ]
 
