@@ -11,7 +11,7 @@ import importlib
 import site
 
 # Import modules
-from prompts import INSTRUCT_SYSTEM_PROMPT, INSTRUCT_FEW_SHOT, TOOL_SYSTEM_PROMPT, TOOL_FEW_SHOT
+from prompts import INSTRUCT_SYSTEM_PROMPT, INSTRUCT_FEW_SHOT, TOOL_SYSTEM_PROMPT, TOOL_FEW_SHOT, PLANNER_SYSTEM_PROMPT, PLANNER_FEW_SHOT
 from tests import INSTRUCT_TEST_SUITE, TOOL_TEST_SUITE, AGENT_TEST_SUITE
 from tools import ToolRegistry, execute_tool, validate_tool_call, is_tool_call
 
