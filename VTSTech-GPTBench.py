@@ -671,9 +671,6 @@ def run_benchmark(args):
     
     if args.mode in ["tool", "all"]:
         print_tool_report(tool_results)
-        
-    if args.mode in ["agent", "all"]:
-        print_agent_report(agent_results)
 
 def print_instruct_report(results):
     print("\n\n" + "📊 INSTRUCT BENCHMARK REPORT".center(65))
