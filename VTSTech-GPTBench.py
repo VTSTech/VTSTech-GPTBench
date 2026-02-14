@@ -27,8 +27,8 @@ MODEL_NUM_PREDICT = {
     "qwen2.5:1.5b": 256,
     "qwen2.5-coder:0.5b": 128,
     "qwen2.5-coder:1.5b": 256,
-    "qwen2.5-coder:0.5b-instruct-q4_k_m": 512,
-    "granite4:350m": 512,
+    "qwen2.5-coder:0.5b-instruct-q4_k_m": 1024,
+    "granite4:350m": 1024,
     "granite4:800m": 256,
     "default": 256
 }
@@ -202,23 +202,75 @@ def sanitize_output(text):
     return text.strip()
     
 def robust_execute(t_name, t_args):
-    """A wrapper to fix tiny-model hallucinations before execution."""
-    if t_args is None: t_args = {}
-    
-    # Fix nested 'input' wrapper
+    """Execute a tool with flexible argument mapping."""
+    if t_args is None:
+        t_args = {}
+
+    # Unwrap nested 'input' (some models wrap arguments)
     if isinstance(t_args, dict) and "input" in t_args:
         t_args = t_args["input"]
 
-    # Fuzzy mapping for find_user
-    if t_name in ["find_user", "get_user"]:
-        for key in ["username", "email", "user_id"]:
-            if key in t_args and "name" not in t_args:
-                t_args["name"] = str(t_args[key])
-                
-    # Force password length to be an int
-    if t_name == "generate_password":
-        t_args = {"length": t_args.get("length", 12)}
-        
+    # Tool‑specific argument normalization
+    if t_name == "find_user":
+        # ToolRegistry.find_user expects 'email'
+        if "email" not in t_args:
+            if "username" in t_args:
+                t_args["email"] = t_args["username"]
+                del t_args["username"]
+            elif "name" in t_args:
+                # Last resort: treat name as email (may fail, but better than nothing)
+                t_args["email"] = t_args["name"]
+                del t_args["name"]
+            elif "user_id" in t_args:
+                # Can't find user by ID with find_user; convert to get_user?
+                # We'll just pass and let execute_tool fail.
+                pass
+
+    elif t_name == "get_user":
+        # ToolRegistry.get_user expects 'user_id' (int)
+        if "user_id" not in t_args:
+            if "id" in t_args:
+                try:
+                    t_args["user_id"] = int(t_args["id"])
+                except:
+                    t_args["user_id"] = t_args["id"]
+                del t_args["id"]
+            elif "userid" in t_args:
+                try:
+                    t_args["user_id"] = int(t_args["userid"])
+                except:
+                    t_args["user_id"] = t_args["userid"]
+                del t_args["userid"]
+
+    elif t_name == "get_weather":
+        # Expects 'location'
+        if "location" not in t_args:
+            if "city" in t_args:
+                t_args["location"] = t_args["city"]
+                del t_args["city"]
+            elif "place" in t_args:
+                t_args["location"] = t_args["place"]
+                del t_args["place"]
+
+    elif t_name == "get_air_quality":
+        # Expects 'city'
+        if "city" not in t_args:
+            if "location" in t_args:
+                t_args["city"] = t_args["location"]
+                del t_args["location"]
+
+    elif t_name == "generate_password":
+        # Expects 'length' (int)
+        if "length" not in t_args:
+            t_args["length"] = 12
+        else:
+            try:
+                t_args["length"] = int(t_args["length"])
+            except:
+                t_args["length"] = 12
+
+    # Add more mappings as needed (convert_units, date_calculator, etc.)
+
     return execute_tool(t_name, t_args)
 
 def get_available_tools_list():
@@ -546,7 +598,7 @@ def evaluate_model_tool(model, args):
                     continue
                 
                 # Execute the real tool
-                tool_result = execute_tool(tool_name, tool_args)
+                tool_result = robust_execute(tool_name, tool_args)
                 
                 # Add tool call and result to conversation
                 messages.append({"role": "assistant", "content": raw_content.strip()})
@@ -555,7 +607,11 @@ def evaluate_model_tool(model, args):
                     "content": json.dumps(tool_result) if isinstance(tool_result, dict) else str(tool_result),
                     "name": tool_name
                 })
-                
+                # Force natural language response
+                messages.append({
+								    "role": "user",
+								    "content": "Now answer the original request in plain English using the tool result."
+                })                
                 # Turn 2: Model responds with natural language
                 final_response = ollama_chat_http(
                     model=model,
@@ -726,7 +782,7 @@ if __name__ == "__main__":
             
     if args.mode == "run-tools":
         run_all_tools_logic()
-        pass
+        sys.exit(0)
     else:
         print("⏭️  Skipping model pulls")
     

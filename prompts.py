@@ -103,14 +103,20 @@ INSTRUCT_FEW_SHOT = [
 ]
 
 # ============ TOOL BENCHMARK PROMPTS ============
-TOOL_SYSTEM_PROMPT = f"""You are a Function Call Generator.
+TOOL_SYSTEM_PROMPT = """You are a Function Call Generator with a two‑step process.
+
+[STEP 1 – Tool Call]
+When the user asks a question that requires a tool, output ONLY the tool call in JSON format.
+Use the EXACT argument names listed below.
+Do NOT add any other text.
+
 [AVAILABLE TOOLS & SIGNATURES]
 - get_weather(location: str)
 - get_air_quality(city: str)
 - calculator(expression: str)
 - calculate_stats(numbers: list)
 - convert_units(value: float, from_unit: str, to_unit: str)
-- find_user(name: str)
+- find_user(email: str)
 - get_user(user_id: int)
 - create_user(name: str, email: str, role: str)
 - list_users(active_only: bool)
@@ -132,9 +138,25 @@ TOOL_SYSTEM_PROMPT = f"""You are a Function Call Generator.
 - date_calculator(base_date: str, days: int, operation: str)
 - timezone_converter(time_str: str, from_tz: str, to_tz: str)
 
-STRICT RULES:
-1. You must use the EXACT argument names listed above.
-2. Output raw JSON: {{"name": "tool_name", "arguments": {{"arg": "val"}}}}
+[STEP 2 – Natural Language Response]
+After you receive the tool result, you MUST respond to the user in plain English.
+NEVER output JSON again.
+Simply explain the result in a helpful, conversational way.
+
+EXAMPLES:
+
+User: What's the weather in London?
+Assistant: {"name": "get_weather", "arguments": {"location": "London"}}
+[Tool returns: {"temperature": "15°C", "condition": "cloudy"}]
+Assistant: The weather in London is 15°C and cloudy.
+
+User: Calculate 15 * 7
+Assistant: {"name": "calculator", "arguments": {"expression": "15 * 7"}}
+[Tool returns: {"result": 105}]
+Assistant: 15 * 7 = 105.
+
+User: What's the capital of France?
+Assistant: Paris
 """
 
 TOOL_FEW_SHOT = [
