@@ -54,7 +54,61 @@ BENCHMARK_CONFIG = {
 }
 PLANNER_MODEL = "qwen2.5-coder:0.5b-instruct-q4_k_m"
 EXEC_MODEL = "granite4:350m"
-	
+
+# ============ TOOL SCHEMA ============
+# Tool schemas injected dynamically to prevent model confusion
+# Maps the tool name to its strict expected JSON format
+TOOL_SCHEMAS = {
+    # 1. WEATHER & ENVIRONMENT
+    "get_weather": '{"name": "get_weather", "arguments": {"location": "string"}}',
+    "get_forecast": '{"name": "get_forecast", "arguments": {"location": "string", "days": "integer"}}',
+    "get_air_quality": '{"name": "get_air_quality", "arguments": {"city": "string"}}',
+    
+    # 2. MATHEMATICS & CALCULATIONS
+    "calculator": '{"name": "calculator", "arguments": {"expression": "string"}}',
+    "convert_units": '{"name": "convert_units", "arguments": {"value": "number", "from_unit": "string", "to_unit": "string"}}',
+    "generate_random_number": '{"name": "generate_random_number", "arguments": {"min_val": "integer", "max_val": "integer"}}',
+    "calculate_stats": '{"name": "calculate_stats", "arguments": {"numbers": "array of numbers"}}',
+    
+    # 3. DATABASE & USER MANAGEMENT
+    "find_user": '{"name": "find_user", "arguments": {"name": "string"}}',
+    "get_user": '{"name": "get_user", "arguments": {"user_id": "integer"}}',
+    "list_users": '{"name": "list_users", "arguments": {"active_only": "boolean"}}',
+    "create_user": '{"name": "create_user", "arguments": {"name": "string", "email": "string", "role": "string"}}',
+    
+    # 4. COMMUNICATION
+    "send_email": '{"name": "send_email", "arguments": {"to": "string", "subject": "string", "body": "string"}}',
+    "send_sms": '{"name": "send_sms", "arguments": {"phone_number": "string", "message": "string"}}',
+    "generate_confirmation_code": '{"name": "generate_confirmation_code", "arguments": {}}',
+    
+    # 5. FILE SYSTEM
+    "create_directory": '{"name": "create_directory", "arguments": {"path": "string"}}',
+    "list_files": '{"name": "list_files", "arguments": {"path": "string"}}',
+    "read_file": '{"name": "read_file", "arguments": {"path": "string"}}',
+    "write_file": '{"name": "write_file", "arguments": {"path": "string", "content": "string"}}',
+    "delete_file": '{"name": "delete_file", "arguments": {"path": "string"}}',
+    
+    # 6. WEB & NETWORK
+    "fetch_url": '{"name": "fetch_url", "arguments": {"url": "string"}}',
+    "ping_host": '{"name": "ping_host", "arguments": {"host": "string"}}',
+    "encode_url": '{"name": "encode_url", "arguments": {"text": "string"}}',
+    "decode_url": '{"name": "decode_url", "arguments": {"encoded": "string"}}',
+    
+    # 7. SECURITY & HASHING
+    "hash_text": '{"name": "hash_text", "arguments": {"text": "string", "algorithm": "string"}}',
+    "generate_password": '{"name": "generate_password", "arguments": {"length": "integer"}}',
+    
+    # 8. TIME & DATE
+    "current_time": '{"name": "current_time", "arguments": {"timezone": "string"}}',
+    "date_calculator": '{"name": "date_calculator", "arguments": {"start_date": "string", "days_to_add": "integer"}}',
+    "timezone_converter": '{"name": "timezone_converter", "arguments": {"time_str": "string", "from_tz": "string", "to_tz": "string"}}',
+    
+    # ALIAS MAPPINGS (In case the planner outputs an alias instead of the canonical name)
+    "calc": '{"name": "calculator", "arguments": {"expression": "string"}}',
+    "mkdir": '{"name": "create_directory", "arguments": {"path": "string"}}',
+    "email": '{"name": "send_email", "arguments": {"to": "string", "subject": "string", "body": "string"}}',
+    "weather": '{"name": "get_weather", "arguments": {"location": "string"}}'
+}
 # ============ HELPER FUNCTIONS ============
 def banner():
     print(f"VTSTech-GPTBench R7")
@@ -105,7 +159,7 @@ def ollama_chat_http(model, messages, options=None, format=None):
         "raw": False,
         "options": {
             "temperature": 0,
-            "num_predict": MODEL_NUM_PREDICT.get(model_name, 256)
+            "num_predict": MODEL_NUM_PREDICT.get(model, 256)
         }        
     }
     if options:
@@ -166,6 +220,68 @@ def robust_execute(t_name, t_args):
         t_args = {"length": t_args.get("length", 12)}
         
     return execute_tool(t_name, t_args)
+
+def get_available_tools_list():
+    # Gets all static methods from ToolRegistry that don't start with _
+    return [func for func in dir(ToolRegistry) if not func.startswith("_") 
+            and callable(getattr(ToolRegistry, func))]
+
+def run_all_tools_logic():
+    """Iterates through ToolRegistry and executes every tool with sample data."""
+    print(f"\n🛠️  EXECUTING ALL REGISTERED TOOLS")
+    print("-" * 45)
+    
+    # Unified sample data mapping
+    sample_data = {
+        "get_weather": {"location": "London"},
+        "get_temperature": {"location": "London"}, # Alias
+        "get_forecast": {"location": "New York", "days": 3},
+        "get_air_quality": {"city": "Tokyo"},
+        "calculator": {"expression": "sqrt(144) + 10"},
+        "calc": {"expression": "10 + 10"}, # Alias
+        "convert_units": {"value": 100, "from_unit": "miles", "to_unit": "kilometers"},
+        "generate_random_number": {"min_val": 1, "max_val": 50},
+        "calculate_stats": {"numbers": [10, 20, 30, 40, 50]},
+        "create_directory": {"path": "test_bench_dir"},
+        "create_folder": {"path": "test_folder"}, # Alias
+        "mkdir": {"path": "test_mkdir"}, # Alias
+        "list_files": {"path": "."},
+        "read_file": {"path": "tools.py"},
+        "write_file": {"path": "test.txt", "content": "Hello Bench"},
+        "delete_file": {"path": "test.txt"},
+        "get_user": {"user_id": 1},
+        "find_user": {"name": "John Doe"}, # Changed from query
+        "create_user": {"name": "VTSTech", "email": "nospam@vts-tech.org"},
+        "send_email": {"to": "test@example.com", "subject": "Bench", "body": "Hello"},
+        "email": {"to": "test@example.com", "subject": "Bench", "body": "Hello"}, # Alias
+        "send_sms": {"phone_number": "555-0199", "message": "Test SMS"},
+        "current_time": {},
+        "date_calculator": {"base_date": "2026-02-13", "days": 30},
+        "timezone_converter": {"time_str": "14:30", "from_tz": "EST", "to_tz": "PST"},
+        "hash_text": {"text": "password123", "algorithm": "sha256"},
+        "generate_password": {"length": 12},
+        "decode_url": {"encoded": "https%3A%2F%2Fvts-tech.org"},
+        "encode_url": {"text": "https://vts-tech.org"},
+        "fetch_url": {"url": "https://wttr.in/London?format=3"},
+        "ping_host": {"host": "8.8.8.8"}
+    }
+
+    methods = [m for m in dir(ToolRegistry) if not m.startswith('_') and callable(getattr(ToolRegistry, m))]
+
+    for method_name in methods:
+        # Skip class methods or internal stuff
+        if method_name in ['execute_tool', 'validate_tool_call']: continue
+        
+        print(f"Running {method_name:<25}", end=" -> ", flush=True)
+        try:
+            func = getattr(ToolRegistry, method_name)
+            args = sample_data.get(method_name, {})
+            
+            # Use inspect to only pass valid arguments if you want to be extra safe
+            result = func(**args)
+            print(f"✅ SUCCESS\n{result}")
+        except Exception as e:
+            print(f"❌ FAILED: {str(e)}")    
 # ============ EVALUATION FUNCTIONS ============
 def evaluate_model_instruct(model, args):
     print(f"\n{'='*40}")
@@ -257,68 +373,6 @@ def evaluate_model_instruct(model, args):
     print(f"\n📊 Model Summary: {model} - Score: {score:.2f}% - Avg Latency: {avg_lat:.2f}s")
     
     return model, score, avg_lat, results
-
-def get_available_tools_list():
-    # Gets all static methods from ToolRegistry that don't start with _
-    return [func for func in dir(ToolRegistry) if not func.startswith("_") 
-            and callable(getattr(ToolRegistry, func))]
-
-def run_all_tools_logic():
-    """Iterates through ToolRegistry and executes every tool with sample data."""
-    print(f"\n🛠️  EXECUTING ALL REGISTERED TOOLS")
-    print("-" * 45)
-    
-    # Unified sample data mapping
-    sample_data = {
-        "get_weather": {"location": "London"},
-        "get_temperature": {"location": "London"}, # Alias
-        "get_forecast": {"location": "New York", "days": 3},
-        "get_air_quality": {"city": "Tokyo"},
-        "calculator": {"expression": "sqrt(144) + 10"},
-        "calc": {"expression": "10 + 10"}, # Alias
-        "convert_units": {"value": 100, "from_unit": "miles", "to_unit": "kilometers"},
-        "generate_random_number": {"min_val": 1, "max_val": 50},
-        "calculate_stats": {"numbers": [10, 20, 30, 40, 50]},
-        "create_directory": {"path": "test_bench_dir"},
-        "create_folder": {"path": "test_folder"}, # Alias
-        "mkdir": {"path": "test_mkdir"}, # Alias
-        "list_files": {"path": "."},
-        "read_file": {"path": "tools.py"},
-        "write_file": {"path": "test.txt", "content": "Hello Bench"},
-        "delete_file": {"path": "test.txt"},
-        "get_user": {"user_id": 1},
-        "find_user": {"name": "John Doe"}, # Changed from query
-        "create_user": {"name": "VTSTech", "email": "nospam@vts-tech.org"},
-        "send_email": {"to": "test@example.com", "subject": "Bench", "body": "Hello"},
-        "email": {"to": "test@example.com", "subject": "Bench", "body": "Hello"}, # Alias
-        "send_sms": {"phone_number": "555-0199", "message": "Test SMS"},
-        "current_time": {},
-        "date_calculator": {"base_date": "2026-02-13", "days": 30},
-        "timezone_converter": {"time_str": "14:30", "from_tz": "EST", "to_tz": "PST"},
-        "hash_text": {"text": "password123", "algorithm": "sha256"},
-        "generate_password": {"length": 12},
-        "decode_url": {"encoded": "https%3A%2F%2Fvts-tech.org"},
-        "encode_url": {"text": "https://vts-tech.org"},
-        "fetch_url": {"url": "https://wttr.in/London?format=3"},
-        "ping_host": {"host": "8.8.8.8"}
-    }
-
-    methods = [m for m in dir(ToolRegistry) if not m.startswith('_') and callable(getattr(ToolRegistry, m))]
-
-    for method_name in methods:
-        # Skip class methods or internal stuff
-        if method_name in ['execute_tool', 'validate_tool_call']: continue
-        
-        print(f"Running {method_name:<25}", end=" -> ", flush=True)
-        try:
-            func = getattr(ToolRegistry, method_name)
-            args = sample_data.get(method_name, {})
-            
-            # Use inspect to only pass valid arguments if you want to be extra safe
-            result = func(**args)
-            print(f"✅ SUCCESS\n{result}")
-        except Exception as e:
-            print(f"❌ FAILED: {str(e)}")
                 
 def evaluate_model_agent(model, planner, args):
     """Executes a multi-step ReAct-style workflow."""    
@@ -608,7 +662,7 @@ def run_benchmark(args):
         print("\n🛠️  AGENT BENCHMARK MODE")
         print("=======================================================")
         agent_results = []
-        result = evaluate_model_agent(exec_model, planner_model, args)
+        result = evaluate_model_agent(EXEC_MODEL, PLANNER_MODEL, args)
         agent_results.append(result)
         print_agent_report(agent_results)
                         
