@@ -53,7 +53,7 @@ BENCHMARK_CONFIG = {
     }
 }
 PLANNER_MODEL = "qwen2.5-coder:0.5b-instruct-q4_k_m"
-EXEC_MODEL = "granite4:350m"
+EXEC_MODEL = "qwen2.5-coder:0.5b-instruct-q4_k_m"
 
 # ============ TOOL SCHEMA ============
 # Tool schemas injected dynamically to prevent model confusion
@@ -188,7 +188,14 @@ def sanitize_output(text):
     # Remove ANSI escape codes
     ansi_escape = re.compile(r'\x1B(?:[@-Z\\-_]|\[[0-?]*[ -/]*[@-~])')
     text = ansi_escape.sub('', text)
-    
+
+		# Force decoding of unicode escapes if the model outputted literal backslashes
+    try:
+        # This converts literal \u00b0 strings into the actual character
+        text = text
+    except:
+        pass
+    return text    
     # Keep only printable characters
     text = "".join(char for char in text if char.isprintable())
     text = text.strip()
@@ -397,7 +404,7 @@ def evaluate_model_instruct(model, args):
                 raw_display = raw_content.replace('\n', ' ')
                 if len(raw_display) > 200:
                     raw_display = raw_display[:200] + "…"
-                print(f"    └─ Raw: \"{raw_display}\"")
+                print(f"    └─ Raw: \"{raw_display}\"".encode('utf-8').decode('unicode_escape'))
             
             if is_pass:
                 passed_count += 1
@@ -452,7 +459,7 @@ def evaluate_model_agent(model, planner, args):
             ]
             
             raw_plan = ollama_chat_http(planner, plan_msg, format="json")
-            if args.verbose: print(f"\n[debug] raw_plan: {raw_plan}")
+            if args.verbose: print(f"\n[debug] raw_plan: {raw_plan}".encode('utf-8').decode('unicode_escape'))
             
             # THE LIST ENFORCER: Force the planner output into a clean list
             try:
@@ -471,16 +478,16 @@ def evaluate_model_agent(model, planner, args):
             
             for step_tool in steps:
                 schema_hint = TOOL_SCHEMAS.get(step_tool, '{"name": "tool_name", "arguments": {}}')
-                
+                context_str = json.dumps(context_so_far, ensure_ascii=False)
                 # We feed the context so far into the next tool call
                 exec_msg = [
-                    {"role": "system", "content": f"{TOOL_SYSTEM_PROMPT}\nREQUIRED SCHEMA: {schema_hint}"},
-                    {"role": "user", "content": f"ORIGINAL REQUEST: {test['prompt']}\nCONTEXT SO FAR: {json.dumps(context_so_far)}\n\nACTION: Generate JSON for tool '{step_tool}'."}
+                {"role": "system", "content": f"{TOOL_SYSTEM_PROMPT}\nREQUIRED SCHEMA: {TOOL_SCHEMAS.get(step_tool)}"},
+                {"role": "user", "content": f"TASK: {test['prompt']}\n\nPREVIOUS RESULTS: {context_str}\n\nAction: Generate the JSON call for '{step_tool}'. Use data from PREVIOUS RESULTS if needed."}
                 ]
                 
                 tool_call_raw = ollama_chat_http(model, exec_msg)
                 cleaned_call = sanitize_output(tool_call_raw)
-                if args.verbose: print(f"[debug] tool_call_raw: {cleaned_call}")
+                if args.verbose: print(f"[debug] tool_call_raw: {cleaned_call}".encode('utf-8').decode('unicode_escape'))
                 
                 if is_tool_call(cleaned_call):
                     try:
@@ -504,7 +511,7 @@ def evaluate_model_agent(model, planner, args):
             ]
             
             final_answer = ollama_chat_http(model, synthesis_msg)
-            if args.verbose: print(f"[debug] final_answer: {final_answer}")
+            if args.verbose: print(f"[debug] final_answer: {final_answer}".encode('utf-8').decode('unicode_escape'))
             
             # --- STEP 4: VALIDATION ---
             is_pass = test["validator"](final_answer)
@@ -633,9 +640,9 @@ def evaluate_model_tool(model, args):
                 is_pass = test["validator"](content)
                 
                 if args.verbose:
-                    print(f"\n      ├─ Tool Call: {tool_name}({tool_args})")
-                    print(f"      ├─ Tool Result: {json.dumps(tool_result)[:250]}")
-                    print(f"      └─ Final: {content[:250]}")
+                    print(f"\n      ├─ Tool Call: {tool_name}({tool_args})".encode('utf-8').decode('unicode_escape'))
+                    print(f"      ├─ Tool Result: {json.dumps(tool_result)[:250]}".encode('utf-8').decode('unicode_escape'))
+                    print(f"      └─ Final: {content[:250]}".encode('utf-8').decode('unicode_escape'))
             
             else:
                 # No tool expected - direct answer

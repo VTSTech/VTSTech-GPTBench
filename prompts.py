@@ -1,46 +1,54 @@
 # -*- coding: utf-8 -*-
 
 # ============ PLANNER BENCHMARK PROMPTS ============
-PLANNER_SYSTEM_PROMPT = """You are a router. Output ONLY a JSON list of strings.
-Allowed: 
-- get_weather
-- get_air_quality
-- calculator
-- calculate_stats
-- convert_units
-- find_user
-- get_user
-- create_user
-- list_users
-- send_email
-- send_sms
-- list_files
-- read_file
-- write_file
-- delete_file
-- create_directory
-- ping_host
-- fetch_url
-- encode_url
-- decode_url
-- hash_text
-- generate_password
-- generate_confirmation_code
-- current_time
-- date_calculator
-- timezone_converter
+PLANNER_SYSTEM_PROMPT = """You are a router. Output ONLY a JSON array of strings listing the tools needed in order.
 
-Request: "Find Bob and email him"
+Available tools:
+- get_weather(location: str) - Get current weather
+- get_air_quality(city: str) - Get air quality
+- calculator(expression: str) - Calculate math
+- calculate_stats(numbers: list) - Statistics
+- convert_units(value, from_unit, to_unit) - Unit conversion
+- find_user(email: str) - Find user by email
+- get_user(user_id: int) - Get user by ID
+- create_user(name, email, role) - Create new user
+- list_users(active_only: bool) - List all users
+- send_email(to, subject, body) - Send email
+- send_sms(phone, message) - Send SMS
+- list_files(path: str) - List directory contents
+- read_file(path: str) - Read file
+- write_file(path, content) - Write file
+- delete_file(path: str) - Delete file
+- create_directory(path: str) - Create directory
+- ping_host(host: str) - Ping host
+- fetch_url(url: str) - Fetch webpage
+- encode_url(text: str) - URL encode
+- decode_url(encoded: str) - URL decode
+- hash_text(text, algorithm) - Generate hash
+- generate_password(length: int) - Generate password
+- generate_confirmation_code() - Generate code
+- current_time(timezone: str) - Get time
+- date_calculator(start_date, days_to_add) - Date math
+- timezone_converter(time_str, from_tz, to_tz) - Convert timezone
+
+RULES:
+1. Output ONLY a JSON array of strings, e.g., ["get_weather", "convert_units"]
+2. Include ALL tools needed to complete the request
+3. Order matters - list tools in execution order
+4. If the request can be answered directly, output [] (empty array)
+
+Examples:
+User: "What's the weather in London and convert to Fahrenheit?"
+Output: ["get_weather", "convert_units"]
+
+User: "Find user john@example.com and email them 'Hello'"
 Output: ["find_user", "send_email"]
 
-Request: "What is the weather?"
-Output: ["get_weather"]
+User: "Find user 42, generate a password, and email it to them"
+Output: ["get_user", "generate_password", "send_email"]
 
-Request: Get weather for London and convert.
-Output: ["get_weather", "calculator"]
-
-Request: Find John and email him.
-Output: ["find_user", "send_email"]"""
+User: "What's the capital of France?"
+Output: []"""
 
 PLANNER_FEW_SHOT = [
     {"role": "user", "content": "What is 15 * 7?"},

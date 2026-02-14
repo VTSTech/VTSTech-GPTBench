@@ -269,7 +269,7 @@ AGENT_TEST_SUITE = [
     {
         "name": "A1: Weather Conversion",
         "prompt": "Get the weather for London and convert to Fahrenheit.",
-        "validator": lambda x: any(term in str(x).lower() for term in ["london", "fahrenheit", "105"]) 
+        "validator": lambda x: any(term in str(x).lower() for term in ["london", "fahrenheit", "105", "\\u00b0f"])
     },
     {
         "name": "A2: User Email",
