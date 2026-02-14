@@ -13,13 +13,13 @@ RE_NUMBER_6 = re.compile(r'\b6\b')
 INSTRUCT_TEST_SUITE = [
     # ----- SHELL COMMANDS -----
     {"name": "S1: List Hidden", "prompt": "Linux command to list all files including hidden.",
-     "validator": lambda x: any(cmd in x for cmd in ["ls -a", "ls -A", "ls -la", "ls -al"])},
+     "validator": lambda x: any(cmd in x for cmd in ["ls -a", "ls -A", "ls -la", "ls -al", "ls -1a"])},
     
     {"name": "S2: Disk Free", "prompt": "Linux command to show human readable disk space.",
      "validator": lambda x: "df" in x.lower() and any(flag in x for flag in ["-h", "-H", "-k", "--human"])},
     
     {"name": "S3: Find Text", "prompt": "Linux command to search for the word 'error' in file 'app.log'.",
-     "validator": lambda x: "grep" in x.lower() and "error" in x.lower()},
+     "validator": lambda x: "grep" in x.lower() and "error" in x.lower() and ("app.log" in x or "cat" in x)},
     
     {"name": "S4: Own Change", "prompt": "Linux command to change owner of 'web' to 'www-data'.",
      "validator": lambda x: "chown" in x and "www-data" in x and ("web" in x or "/var/www/html" in x or "/web" in x)},
@@ -42,14 +42,7 @@ INSTRUCT_TEST_SUITE = [
      "validator": lambda x: "status" in x.lower() and "ok" in x.lower() and ('{' in x or '"' in x)},
     
     {"name": "F3: CSV Extract", "prompt": "Extract 2nd column from CSV: 'Name,ID\\nVTSTech,101'",
-     "validator": lambda x: (
-         x.strip() == "101"
-     ) or (
-         "101" in x and "VTSTech" not in x
-     ) or (
-         ("awk" in x and "{print $2}" in x) or
-         ("cut" in x and "-f2" in x)
-     )},
+     "validator": lambda x: "101" in x and "Name" not in x and "VTSTech" not in x},
     
     {"name": "F4: Lowercase", "prompt": "Convert 'HELLO' to lowercase.",
      "validator": lambda x: "hello" in x.lower().replace("<|system|>", "").strip()},
@@ -274,15 +267,23 @@ TOOL_TEST_SUITE = [
 
 AGENT_TEST_SUITE = [
     {
-        "name": "A1: Weather Conversion",
-        "prompt": "Get the weather for London and convert the temperature to Fahrenheit.",
-        "steps": ["get_weather", "convert_units"],
-        "validator": lambda x: "fahrenheit" in str(x).lower()
+        "name": "A1: Weather Conversion", 
+        "prompt": "The weather is Clear and 22 Celsius. What is that in Fahrenheit?", 
+        "steps": ["convert_units"],
+        # Fixes False Negative: Accepts "71.6", "72", "71.6F"
+        "validator": lambda x: any(v in str(x) for v in ["71.6", "72", "71.5"])
     },
     {
-        "name": "A2: User Directory",
-        "prompt": "Find the user john@example.com and create a folder named after his user ID.",
-        "steps": ["find_user", "create_directory"],
-        "validator": lambda x: "42" in str(x) and "created" in str(x)
+        "name": "A2: Multi-City Weather",
+        "prompt": "Compare the temperature in London and Paris.",
+        "steps": ["get_weather", "get_weather"],
+        # Ensures both cities were actually looked up in the context
+        "validator": lambda x: "london" in str(x).lower() and "paris" in str(x).lower()
+    },
+    {
+        "name": "A3: Secure User Email",
+        "prompt": "Find user 42, generate a 12-char password for them, and email it.",
+        "steps": ["get_user", "generate_password", "send_email"],
+        "validator": lambda x: all(k in str(x).lower() for k in ["user_id\": 42", "password", "send_email"])
     }
 ]

@@ -262,6 +262,7 @@ def evaluate_model_agent(model, planner, args):
     total_time = 0
     test_results = []
     tools_list = get_available_tools_list()
+    tools_str = "\n".join([f"- {t}" for t in tools_list])
     
     # We use a higher-tier 'planner' for the logic and the benchmarked 'model' for execution
     print(f"\n🚀 EVALUATING AGENT: [Planner: {planner}] [Tools: {model}]")
@@ -275,26 +276,25 @@ def evaluate_model_agent(model, planner, args):
             # --- STEP 1: PLANNING ---
             # Using the 'planner' model to generate a sequence of sub-tasks
             plan_msg = [
-    {"role": "system", "content": """You are a TASK PLANNER. 
-Break the user's request into a simple JSON list of text steps.
-DO NOT solve the task. DO NOT provide data. ONLY provide the steps.
+            {"role": "system", "content": PLANNER_SYSTEM_PROMPT.format(tools=tools_str)}
+        ] + PLANNER_FEW_SHOT + [
+            {"role": "user", "content": test['prompt']}
+        ]
+            raw_plan = ollama_chat_http(planner, plan_msg, format="json", options={"temperature": 0})
+        try:
+            plan = json.loads(sanitize_output(raw_plan))
+            if not isinstance(plan, list): plan = []
+        except:
+            plan = []
 
-BAD: {"step": "weather is 70F"}
-GOOD: ["Get weather for London", "Convert Celsius to Fahrenheit"]"""},
-    {"role": "user", "content": test['prompt']}
+        # STEP 2: Execution
+        context = f"Original Task: {test['prompt']}\nPlan: {plan}\n"
+        for step in plan:
+            # Here we prompt the bench-marked 'model' to execute the specific tool
+            exec_msg = [
+                {"role": "system", "content": TOOL_SYSTEM_PROMPT},
+                {"role": "user", "content": f"Context: {context}\n\nTask: Call the tool '{step}' for the original request."}
             ]
-            raw_plan = ollama_chat_http(planner, plan_msg, format="json")
-            steps = json.loads(sanitize_output(raw_plan))
-            print(f"[debug] raw_plan: {raw_plan}")
-            # --- STEP 2: EXECUTION ---
-            # The benchmarked 'model' now performs each step using tools
-            context = ""
-            for step in steps:
-                plan_details = steps[step] # Get the specific values the planner decided on
-                exec_msg = [
-    {"role": "system", "content": TOOL_SYSTEM_PROMPT},
-    {"role": "user", "content": f"PLAN DATA: {plan_details}\nACTION: Execute the tool for {step} using the PLAN DATA."}
-                ]
                 print(f"[debug] exec_msg: {exec_msg}")
                 # Model decides which tool to call
                 tool_call_raw = ollama_chat_http(model, exec_msg)
