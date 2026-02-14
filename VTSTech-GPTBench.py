@@ -53,6 +53,7 @@ BENCHMARK_CONFIG = {
     }
 }
 PLANNER_MODEL = "qwen2.5-coder:0.5b-instruct-q4_k_m"
+EXEC_MODEL = "granite4:350m"
 	
 # ============ HELPER FUNCTIONS ============
 def banner():
@@ -102,6 +103,10 @@ def ollama_chat_http(model, messages, options=None, format=None):
         "messages": messages,
         "stream": False,
         "raw": False,
+        "options": {
+            "temperature": 0,
+            "num_predict": MODEL_NUM_PREDICT.get(model_name, 256)
+        }        
     }
     if options:
         payload["options"] = options
@@ -141,7 +146,26 @@ def sanitize_output(text):
         text = text[1:-1]
     
     return text.strip()
+    
+def robust_execute(t_name, t_args):
+    """A wrapper to fix tiny-model hallucinations before execution."""
+    if t_args is None: t_args = {}
+    
+    # Fix nested 'input' wrapper
+    if isinstance(t_args, dict) and "input" in t_args:
+        t_args = t_args["input"]
 
+    # Fuzzy mapping for find_user
+    if t_name in ["find_user", "get_user"]:
+        for key in ["username", "email", "user_id"]:
+            if key in t_args and "name" not in t_args:
+                t_args["name"] = str(t_args[key])
+                
+    # Force password length to be an int
+    if t_name == "generate_password":
+        t_args = {"length": t_args.get("length", 12)}
+        
+    return execute_tool(t_name, t_args)
 # ============ EVALUATION FUNCTIONS ============
 def evaluate_model_instruct(model, args):
     print(f"\n{'='*40}")
@@ -297,13 +321,7 @@ def run_all_tools_logic():
             print(f"❌ FAILED: {str(e)}")
                 
 def evaluate_model_agent(model, planner, args):
-    """
-    Executes a multi-step workflow. 
-    1. Planner (Higher tier) breaks down task.
-    2. Model (Benchmarked) generates tool calls.
-    3. ToolRegistry executes calls.
-    4. Model (Benchmarked) synthesizes final answer.
-    """    
+    """Executes a multi-step ReAct-style workflow."""    
     passed_count = 0
     total_time = 0
     test_results = []
@@ -317,65 +335,67 @@ def evaluate_model_agent(model, planner, args):
         
         try:
             # --- STEP 1: PLANNING ---
-            # The planner converts natural language into a list of steps/tools
             plan_msg = [
                 {"role": "system", "content": PLANNER_SYSTEM_PROMPT},
                 {"role": "user", "content": test['prompt']}
             ]
             
             raw_plan = ollama_chat_http(planner, plan_msg, format="json")
-            try:
-						    decoded_plan = json.loads(sanitize_output(raw_plan))
-						    if isinstance(decoded_plan, dict):
-						        # Convert {"tool1": "...", "tool2": "..."} -> ["tool1", "tool2"]
-						        steps = list(decoded_plan.keys())
-						    else:
-						        steps = decoded_plan
-            except:
-						    steps = []
             if args.verbose: print(f"\n[debug] raw_plan: {raw_plan}")
-            # --- STEP 2: EXECUTION ---
-            context_data = [] # To store actual tool results
-            step_items = steps.items() if isinstance(steps, dict) else enumerate(steps)
-
-            for _, val in step_items:
-                step_desc = val
+            
+            # THE LIST ENFORCER: Force the planner output into a clean list
+            try:
+                plan_data = json.loads(sanitize_output(raw_plan))
+                if isinstance(plan_data, dict):
+                    steps = list(plan_data.keys())
+                elif isinstance(plan_data, list):
+                    steps = plan_data
+                else:
+                    steps = [str(plan_data)]
+            except:
+                steps = []
+            
+            # --- STEP 2: PROGRESSIVE EXECUTION ---
+            context_so_far = []
+            
+            for step_tool in steps:
+                schema_hint = TOOL_SCHEMAS.get(step_tool, '{"name": "tool_name", "arguments": {}}')
                 
+                # We feed the context so far into the next tool call
                 exec_msg = [
-                    {"role": "system", "content": TOOL_SYSTEM_PROMPT},
-                    {"role": "user", "content": f"TASK: {step_desc}\nREQUIRED ARGUMENTS: Use only the names defined in the system prompt.\nDATA: {val}"}
+                    {"role": "system", "content": f"{TOOL_SYSTEM_PROMPT}\nREQUIRED SCHEMA: {schema_hint}"},
+                    {"role": "user", "content": f"ORIGINAL REQUEST: {test['prompt']}\nCONTEXT SO FAR: {json.dumps(context_so_far)}\n\nACTION: Generate JSON for tool '{step_tool}'."}
                 ]
                 
                 tool_call_raw = ollama_chat_http(model, exec_msg)
                 cleaned_call = sanitize_output(tool_call_raw)
-                if args.verbose: print(f"\n[debug] tool_call_raw: {tool_call_raw}")
+                if args.verbose: print(f"[debug] tool_call_raw: {cleaned_call}")
+                
                 if is_tool_call(cleaned_call):
                     try:
-                        # Parse and execute
                         call_data = json.loads(cleaned_call)
-                        # Extract name and args using the logic you already established
-                        t_name = call_data.get("name") or call_data.get("function", {}).get("name")
-                        t_args = call_data.get("arguments") or call_data.get("function", {}).get("arguments")
+                        t_name = call_data.get("name", step_tool)
+                        t_args = call_data.get("arguments", {})
                         
-                        output = execute_tool(t_name, t_args)
-                        context_data.append({"step": step_desc, "result": output})
+                        # Use our new robust mapping wrapper
+                        output = robust_execute(t_name, t_args)
+                        context_so_far.append({"tool": t_name, "result": output})
                     except Exception as e:
-                        context_data.append({"step": step_desc, "error": str(e)})
+                        context_so_far.append({"tool": step_tool, "error": str(e)})
                 else:
-                    context_data.append({"step": step_desc, "response": cleaned_call})
+                    context_so_far.append({"tool": step_tool, "response": cleaned_call})
 
             # --- STEP 3: FINAL SYNTHESIS ---
-            # Now the model uses AGENT_SYSTEM_PROMPT to explain the results to the user
-            synthesis_input = f"User Request: {test['prompt']}\nExecution Results: {json.dumps(context_data)}"
+            synthesis_input = f"User Request: {test['prompt']}\nExecution Results: {json.dumps(context_so_far)}"
             synthesis_msg = [
                 {"role": "system", "content": AGENT_SYSTEM_PROMPT},
                 {"role": "user", "content": synthesis_input}
             ]
             
             final_answer = ollama_chat_http(model, synthesis_msg)
-            if args.verbose: print(f"\n[debug] final_answer: {final_answer}")
+            if args.verbose: print(f"[debug] final_answer: {final_answer}")
+            
             # --- STEP 4: VALIDATION ---
-            # We validate the FINAL ANSWER, not just the raw context
             is_pass = test["validator"](final_answer)
             
             duration = time.perf_counter() - start_time
@@ -383,11 +403,7 @@ def evaluate_model_agent(model, planner, args):
             if is_pass: passed_count += 1
             
             test_results.append({
-                "model": model,
-                "test": test['name'],
-                "pass": is_pass,
-                "latency": duration,
-                "final_answer": final_answer
+                "model": model, "test": test['name'], "pass": is_pass, "latency": duration
             })
             
             print(f"{'✅ PASS' if is_pass else '❌ FAIL'} ({duration:.2f}s)")
@@ -397,7 +413,6 @@ def evaluate_model_agent(model, planner, args):
 
     score = (passed_count / len(AGENT_TEST_SUITE)) * 100 if AGENT_TEST_SUITE else 0
     avg_lat = total_time / len(AGENT_TEST_SUITE) if AGENT_TEST_SUITE else 0
-    
     return (model, score, avg_lat, test_results)
     
 def evaluate_model_tool(model, args):
@@ -589,16 +604,13 @@ def run_benchmark(args):
                 with open(f"{args.json_output}_tool.json", 'w') as f:
                     json.dump([r[3] for r in tool_results], f, indent=2)
 
-    if args.mode in ["agent", "all"]:
+    if args.mode in ["all", "agent"]:
         print("\n🛠️  AGENT BENCHMARK MODE")
-        print("=" * 55)
-        
-        for model in models:
-            result = evaluate_model_agent(model, PLANNER_MODEL, args)
-            agent_results.append(result)
-            if args.json_output:
-                with open(f"{args.json_output}_agent.json", 'w') as f:
-                    json.dump([r[3] for r in agent_results], f, indent=2)
+        print("=======================================================")
+        agent_results = []
+        result = evaluate_model_agent(exec_model, planner_model, args)
+        agent_results.append(result)
+        print_agent_report(agent_results)
                         
     if args.mode in ["instruct", "all"]:
         print_instruct_report(instruct_results)
@@ -640,21 +652,13 @@ def print_tool_report(results):
         print(f"\n🏆 Best Model: {best_model[0]} - {best_model[1]:.2f}%")
 
 def print_agent_report(results):
-    """Prints the final summary report for Agent Mode evaluation."""
     print("\n\n" + "📊 AGENT BENCHMARK REPORT".center(65))
     print("-" * 65)
     print(f"{'Model':<30} | {'Score':<12} | {'Avg Latency':<12} | {'Tests':<8}")
     print("-" * 65)
-    
-    # Sort by score descending
     for model, score, lat, res in sorted(results, key=lambda x: x[1], reverse=True):
         print(f"{model:<30} | {score:>10.2f}% | {lat:>11.2f}s | {len(res):>6}")
-    
     print("-" * 65)
-    
-    if results:
-        best_model = max(results, key=lambda x: x[1])
-        print(f"\n🏆 Best Agent Performer: {best_model[0]} - {best_model[1]:.2f}%")
         	
 if __name__ == "__main__":
     banner()
@@ -668,6 +672,7 @@ if __name__ == "__main__":
         models = args.models.split(",") if args.models else BENCHMARK_CONFIG["models"]
         for m in models:
             pull_if_missing(m.strip())
+            
     if args.mode == "run-tools":
         run_all_tools_logic()
         pass
