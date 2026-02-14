@@ -852,8 +852,34 @@ def is_tool_call(response):
     except Exception:
         return False
 
-ToolRegistry.create_folder = ToolRegistry.create_directory
-ToolRegistry.mkdir = ToolRegistry.create_directory
+# --- Logic Aliases (Hallucination Protection) ---
+# Weather/Environment
 ToolRegistry.get_temperature = ToolRegistry.get_weather
+ToolRegistry.getWeatherData = ToolRegistry.get_weather
+ToolRegistry.weather = ToolRegistry.get_weather
+
+# User Management
+ToolRegistry.search_user = ToolRegistry.find_user
+ToolRegistry.lookup_user = ToolRegistry.find_user
+ToolRegistry.findUser = ToolRegistry.find_user
+ToolRegistry.user_lookup = ToolRegistry.find_user
+
+# File System
+ToolRegistry.mkdir = ToolRegistry.create_directory
+ToolRegistry.make_dir = ToolRegistry.create_directory
+ToolRegistry.create_folder = ToolRegistry.create_directory
+ToolRegistry.ls = ToolRegistry.list_files
+ToolRegistry.dir = ToolRegistry.list_files
+ToolRegistry.cat = ToolRegistry.read_file
+
+# Communication
 ToolRegistry.email = ToolRegistry.send_email
+ToolRegistry.message = ToolRegistry.send_sms
+ToolRegistry.sms = ToolRegistry.send_sms
+
+# Utilities
 ToolRegistry.calc = ToolRegistry.calculator
+ToolRegistry.math = ToolRegistry.calculator
+ToolRegistry.ping = ToolRegistry.ping_host
+ToolRegistry.hash = ToolRegistry.hash_text
+ToolRegistry.sha256 = ToolRegistry.hash_text

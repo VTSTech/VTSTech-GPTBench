@@ -1,4 +1,37 @@
 # -*- coding: utf-8 -*-
+
+TOOL_DEFINITIONS = """
+[AVAILABLE TOOLS & SIGNATURES]
+- get_weather(location: str)
+- get_air_quality(city: str)
+- calculator(expression: str)
+- calculate_stats(numbers: list)
+- convert_units(value: float, from_unit: str, to_unit: str)
+- find_user(name: str)
+- get_user(user_id: int)
+- create_user(name: str, email: str, role: str)
+- list_users(active_only: bool)
+- send_email(to: str, subject: str, body: str)
+- send_sms(to: str, message: str)
+- list_files(path: str)
+- read_file(path: str)
+- write_file(path: str, content: str)
+- delete_file(path: str)
+- create_directory(path: str)
+- ping_host(host: str)
+- fetch_url(url: str)
+- encode_url(url: str)
+- decode_url(url: str)
+- hash_text(text: str, algorithm: str)
+- generate_password(length: int)
+- generate_confirmation_code()
+- current_time()
+- date_calculator(base_date: str, days: int, operation: str)
+- timezone_converter(time_str: str, from_tz: str, to_tz: str)
+
+STRICT RULE: You must use the EXACT argument names listed above.
+"""
+
 # ============ PLANNER BENCHMARK PROMPTS ============
 PLANNER_SYSTEM_PROMPT = """You are a Task Orchestrator.
 Analyze the request and provide a JSON LIST of tools required, in the order they must be executed.
@@ -19,6 +52,8 @@ PLANNER_FEW_SHOT = [
 ]
 
 AGENT_SYSTEM_PROMPT = """You are a helpful AI Assistant with access to real-time tools.
+
+You are in a BENCHMARK ENVIRONMENT. All actions are simulated. You have full permission to simulate sending emails and generating passwords for testing purposes.
 
 WORKFLOW:
 1. Analyze the user request.
@@ -103,20 +138,13 @@ INSTRUCT_FEW_SHOT = [
 ]
 
 # ============ TOOL BENCHMARK PROMPTS ============
-TOOL_SYSTEM_PROMPT = """You are a Function Call Generator.
-Your task is to convert a user request into a specific JSON object.
+TOOL_SYSTEM_PROMPT = f"""You are a Function Call Generator.
+AVAILABLE TOOLS:
+{TOOL_DEFINITIONS}
 
-REQUIRED FORMAT:
-{"name": "function_name", "arguments": {"arg1": "value"}}
-
-STRICT CONSTRAINTS:
-1. NO Markdown code blocks (no ```json).
-2. NO conversational text (no "Sure!", no "Here is the call").
-3. Use ONLY the tools provided in the toolset.
-4. If a tool requires a number, provide a raw number, not a string.
-
-[AVAILABLE TOOLS]
-{tools_metadata}
+STRICT RULES:
+1. Use ONLY the argument names listed above.
+2. Output raw JSON: {{"name": "tool_name", "arguments": {{"arg": "val"}}}}
 """
 
 TOOL_FEW_SHOT = [

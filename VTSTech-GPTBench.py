@@ -23,12 +23,12 @@ MODEL_NUM_PREDICT = {
     "gemma3:4b": 512,
     "granite3-moe:1b": 256,
     "granite3-moe:3b": 512,
-    "qwen2.5:0.5b": 128,
+    "qwen2.5:0.5b": 512,
     "qwen2.5:1.5b": 256,
     "qwen2.5-coder:0.5b": 128,
     "qwen2.5-coder:1.5b": 256,
     "qwen2.5-coder:0.5b-instruct-q4_k_m": 512,
-    "granite4:350m": 128,
+    "granite4:350m": 512,
     "granite4:800m": 256,
     "default": 256
 }
@@ -325,7 +325,7 @@ def evaluate_model_agent(model, planner, args):
             
             raw_plan = ollama_chat_http(planner, plan_msg, format="json")
             steps = json.loads(sanitize_output(raw_plan))
-            
+            if args.verbose: print(f"\n[debug] raw_plan: {raw_plan}")
             # --- STEP 2: EXECUTION ---
             context_data = [] # To store actual tool results
             step_items = steps.items() if isinstance(steps, dict) else enumerate(steps)
@@ -335,12 +335,12 @@ def evaluate_model_agent(model, planner, args):
                 
                 exec_msg = [
                     {"role": "system", "content": TOOL_SYSTEM_PROMPT},
-                    {"role": "user", "content": f"ORIGINAL REQUEST: {test['prompt']}\nCURRENT STEP: {step_desc}"}
+                    {"role": "user", "content": f"TASK: {step_desc}\nREQUIRED ARGUMENTS: Use only the names defined in the system prompt.\nDATA: {val}"}
                 ]
                 
                 tool_call_raw = ollama_chat_http(model, exec_msg)
                 cleaned_call = sanitize_output(tool_call_raw)
-                
+                if args.verbose: print(f"\n[debug] tool_call_raw: {tool_call_raw}")
                 if is_tool_call(cleaned_call):
                     try:
                         # Parse and execute
@@ -365,7 +365,7 @@ def evaluate_model_agent(model, planner, args):
             ]
             
             final_answer = ollama_chat_http(model, synthesis_msg)
-            
+            if args.verbose: print(f"\n[debug] final_answer: {final_answer}")
             # --- STEP 4: VALIDATION ---
             # We validate the FINAL ANSWER, not just the raw context
             is_pass = test["validator"](final_answer)
