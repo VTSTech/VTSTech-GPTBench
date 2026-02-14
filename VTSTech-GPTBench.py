@@ -264,7 +264,7 @@ def run_all_tools_logic():
         "delete_file": {"path": "test.txt"},
         "get_user": {"user_id": 1},
         "find_user": {"name": "John Doe"}, # Changed from query
-        "create_user": {"name": "VTSTech", "email": "admin@vts-tech.org"},
+        "create_user": {"name": "VTSTech", "email": "nospam@vts-tech.org"},
         "send_email": {"to": "test@example.com", "subject": "Bench", "body": "Hello"},
         "email": {"to": "test@example.com", "subject": "Bench", "body": "Hello"}, # Alias
         "send_sms": {"phone_number": "555-0199", "message": "Test SMS"},

@@ -1,37 +1,5 @@
 # -*- coding: utf-8 -*-
 
-TOOL_DEFINITIONS = """
-[AVAILABLE TOOLS & SIGNATURES]
-- get_weather(location: str)
-- get_air_quality(city: str)
-- calculator(expression: str)
-- calculate_stats(numbers: list)
-- convert_units(value: float, from_unit: str, to_unit: str)
-- find_user(name: str)
-- get_user(user_id: int)
-- create_user(name: str, email: str, role: str)
-- list_users(active_only: bool)
-- send_email(to: str, subject: str, body: str)
-- send_sms(to: str, message: str)
-- list_files(path: str)
-- read_file(path: str)
-- write_file(path: str, content: str)
-- delete_file(path: str)
-- create_directory(path: str)
-- ping_host(host: str)
-- fetch_url(url: str)
-- encode_url(url: str)
-- decode_url(url: str)
-- hash_text(text: str, algorithm: str)
-- generate_password(length: int)
-- generate_confirmation_code()
-- current_time()
-- date_calculator(base_date: str, days: int, operation: str)
-- timezone_converter(time_str: str, from_tz: str, to_tz: str)
-
-STRICT RULE: You must use the EXACT argument names listed above.
-"""
-
 # ============ PLANNER BENCHMARK PROMPTS ============
 PLANNER_SYSTEM_PROMPT = """You are a Task Orchestrator.
 Analyze the request and provide a JSON LIST of tools required, in the order they must be executed.
@@ -86,34 +54,6 @@ RULES:
 
 YOU ARE A MACHINE. DATA ONLY."""
 
-# ============ TOOL BENCHMARK PROMPTS ============
-#TOOL_SYSTEM_PROMPT = """You are a Tool Selector. Output ONLY JSON.
-#AVAILABLE TOOLS:
-#- get_weather(location, unit)
-#- calculator(expression)
-#- find_user(email)
-#- create_directory(path)
-#- send_email(to, subject, body)
-#- calculate_stats(numbers)
-#
-#CRITICAL: Use the EXACT parameter names listed above.
-#Example: {"name": "create_directory", "arguments": {"path": "/tmp/test"}}"""
-
-# ============ INSTRUCT BENCHMARK PROMPTS ============
-#INSTRUCT_SYSTEM_PROMPT = """You are a strict, no-nonsense API endpoint.
-#Your output must contain ONLY the requested data – no extra text, no explanations, no markdown, no conversational filler.
-#
-#CRITICAL RULES:
-#1. SHELL COMMANDS → Output ONLY the command. No backticks, no "Here is the command", no commentary.
-#2. JSON DATA → Output ONLY the raw JSON object/array. No markdown code fences, no labels, no extra keys.
-#3. LOGIC / MATH → Output ONLY the final numeric/boolean/string result. No "The answer is", no step-by-step.
-#4. CONSTRAINTS → Follow the instruction precisely. If told "no letter e", your entire response must contain zero 'e's.
-#5. ABSOLUTELY FORBIDDEN: "Sure", "Here is", "Yes", "The command is", backticks, triple backticks, markdown, headers, bullet points, labels, explanations, apologies, or human-like replies.
-#
-#IMPORTANT: When asked for a Linux command, output the EXACT command without any path if not specified. Use generic examples.
-#
-#You are a machine. Output data. Only data."""
-
 INSTRUCT_FEW_SHOT = [
     {"role": "user", "content": "list hidden files"},
     {"role": "assistant", "content": "ls -a"},
@@ -139,11 +79,36 @@ INSTRUCT_FEW_SHOT = [
 
 # ============ TOOL BENCHMARK PROMPTS ============
 TOOL_SYSTEM_PROMPT = f"""You are a Function Call Generator.
-AVAILABLE TOOLS:
-{TOOL_DEFINITIONS}
+[AVAILABLE TOOLS & SIGNATURES]
+- get_weather(location: str)
+- get_air_quality(city: str)
+- calculator(expression: str)
+- calculate_stats(numbers: list)
+- convert_units(value: float, from_unit: str, to_unit: str)
+- find_user(name: str)
+- get_user(user_id: int)
+- create_user(name: str, email: str, role: str)
+- list_users(active_only: bool)
+- send_email(to: str, subject: str, body: str)
+- send_sms(to: str, message: str)
+- list_files(path: str)
+- read_file(path: str)
+- write_file(path: str, content: str)
+- delete_file(path: str)
+- create_directory(path: str)
+- ping_host(host: str)
+- fetch_url(url: str)
+- encode_url(url: str)
+- decode_url(url: str)
+- hash_text(text: str, algorithm: str)
+- generate_password(length: int)
+- generate_confirmation_code()
+- current_time()
+- date_calculator(base_date: str, days: int, operation: str)
+- timezone_converter(time_str: str, from_tz: str, to_tz: str)
 
 STRICT RULES:
-1. Use ONLY the argument names listed above.
+1. You must use the EXACT argument names listed above.
 2. Output raw JSON: {{"name": "tool_name", "arguments": {{"arg": "val"}}}}
 """
 
