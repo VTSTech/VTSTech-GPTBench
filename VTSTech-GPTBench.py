@@ -67,12 +67,12 @@ PLANNER_MODEL = "qwen2.5-coder:0.5b-instruct-q4_k_m"
 	
 # ============ HELPER FUNCTIONS ============
 def banner():
-    print(f"VTSTech-GPTBench R6")
+    print(f"VTSTech-GPTBench R7")
     print(f"https://www.vts-tech.org https://github.com/VTSTech/VTSTech-GPTBench\n")
 
 def parse_arguments():
     parser = argparse.ArgumentParser(
-        description="VTSTech GPT Benchmark – Evaluate tiny LLMs on Ollama",
+        description="VTSTech-GPTBench – Evaluate tiny LLMs on Ollama",
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog="Example: python benchmark.py --models llama3.2:1b,qwen2.5:0.5b --mode instruct --verbose"
     )
@@ -274,13 +274,13 @@ def run_all_tools_logic():
         "write_file": {"path": "test.txt", "content": "Hello Bench"},
         "delete_file": {"path": "test.txt"},
         "get_user": {"user_id": 1},
-        "find_user": {"query": "Alice"}, # Check if your tool uses 'query' or 'name'
+        "find_user": {"name": "John Doe"}, # Changed from query
         "create_user": {"name": "VTSTech", "email": "admin@vts-tech.org"},
         "send_email": {"to": "test@example.com", "subject": "Bench", "body": "Hello"},
         "email": {"to": "test@example.com", "subject": "Bench", "body": "Hello"}, # Alias
         "send_sms": {"phone_number": "555-0199", "message": "Test SMS"},
         "current_time": {},
-        "date_calculator": {"date_str": "2026-02-13", "days": 30}, # Fixed key
+        "date_calculator": {"base_date": "2026-02-13", "days": 30},
         "timezone_converter": {"time_str": "14:30", "from_tz": "EST", "to_tz": "PST"},
         "hash_text": {"text": "password123", "algorithm": "sha256"},
         "generate_password": {"length": 12},
@@ -303,7 +303,7 @@ def run_all_tools_logic():
             
             # Use inspect to only pass valid arguments if you want to be extra safe
             result = func(**args)
-            print(f"✅ SUCCESS")
+            print(f"✅ SUCCESS\n{result}")
         except Exception as e:
             print(f"❌ FAILED: {str(e)}")
                 

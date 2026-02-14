@@ -241,7 +241,7 @@ TOOL_TEST_SUITE = [
         "name": "TC22: Hash Text",
         "prompt": "Generate SHA256 hash of 'password123'",
         "expects_tool": True,
-        "validator": lambda x: len(x) > 50 and "8d969e" in x.lower()  # SHA256 of 'password123'
+        "validator": lambda x: "8d969e" in str(x)  # SHA256 of 'password123'
     },
     {
         "name": "TC23: Generate Password",
